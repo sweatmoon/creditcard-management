@@ -242,7 +242,10 @@ class StorageService {
           'category': category,
           'detail': detail,
           'coUsers': coUsers,
-          'dateTime': dateTime.toIso8601String(),
+          // dateTime은 기기 로컬시간(KST) 값이므로, 서버가 시간대와 무관하게
+          // 올바른 UTC로 저장하도록 toUtc()로 명시 변환 후 문자열화한다.
+          // (transaction.dart의 toJson()과 동일한 버그 수정 패턴)
+          'dateTime': dateTime.toUtc().toIso8601String(),
           'cardHolder': cardHolder,
         }),
       );

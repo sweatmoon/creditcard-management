@@ -53,6 +53,14 @@ class CardTransaction {
   }
 
   /// API(JSON) 전송용 직렬화 - 날짜는 ISO8601 문자열로 변환
+  ///
+  /// 중요: dateTime/createdAt은 앱 내부적으로 "기기 로컬시간(KST)" 값으로
+  /// 들고 있다. 이를 그냥 toIso8601String()으로 문자열화하면 UTC 표시자('Z')가
+  /// 없는 애매한 문자열("2026-09-08T21:43:00.000")이 되는데, 서버(Postgres,
+  /// TIMESTAMPTZ 컬럼)는 이런 오프셋 없는 문자열을 "서버 세션 시간대(UTC)"로
+  /// 해석해버려 실제보다 9시간 어긋난 값이 저장되는 버그가 있었다.
+  /// 반드시 toUtc()로 먼저 변환한 뒤 문자열화해서 'Z'가 포함되도록 해야
+  /// 서버가 시간대와 무관하게 항상 올바르게 UTC로 저장할 수 있다.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -62,10 +70,10 @@ class CardTransaction {
       'category': category,
       'detail': detail,
       'coUsers': coUsers,
-      'dateTime': dateTime.toIso8601String(),
+      'dateTime': dateTime.toUtc().toIso8601String(),
       'cardHolder': cardHolder,
       'rawMessage': rawMessage,
-      'createdAt': createdAt.toIso8601String(),
+      'createdAt': createdAt.toUtc().toIso8601String(),
     };
   }
 
