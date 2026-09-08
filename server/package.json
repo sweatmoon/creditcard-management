@@ -1,0 +1,15 @@
+{
+  "name": "smart-sms-ledger-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart SMS Ledger - API server + static Flutter web hosting (Railway)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "cors": "^2.8.5"
+  }
+}
