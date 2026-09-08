@@ -24,6 +24,33 @@ const NON_APPROVAL_KEYWORDS = [
 const LUNCH_START_MIN = 11 * 60 + 30; // 11:30
 const LUNCH_END_MIN = 14 * 60; // 14:00
 
+// 문자 원문의 날짜/시간은 항상 한국시간(KST, UTC+9) 기준으로 표기된다.
+// 서버(Railway 등)는 시스템 시간대가 UTC인 경우가 많아, new Date(y,m,d,h,min)를
+// 그대로 쓰면 "서버 로컬시간(=UTC)"로 잘못 해석되어 실제보다 9시간 어긋난 값이
+// 저장되는 문제가 있었다. 항상 KST로 명시적으로 해석해서 UTC로 변환한다.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/// KST 기준의 연/월/일/시/분을 올바른 UTC Date 객체로 변환.
+function kstDate(year, month, day, hour, minute) {
+  // Date.UTC(...)는 "이 값들이 UTC다"라고 가정해 epoch ms를 만들어준다.
+  // 여기서는 그 값들이 사실 KST이므로, KST->UTC 변환을 위해 9시간을 빼준다.
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute) - KST_OFFSET_MS;
+  return new Date(utcMs);
+}
+
+/// 현재 시각을 KST 기준 {year, month(1-based), day, hour, minute}로 반환.
+function nowKst() {
+  const kstMs = Date.now() + KST_OFFSET_MS;
+  const d = new Date(kstMs);
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+    hour: d.getUTCHours(),
+    minute: d.getUTCMinutes(),
+  };
+}
+
 const AMOUNT_LINE_RE = /^([0-9][0-9,]*)\s*원\s*(승인|취소|매출)$/;
 const OVERSEAS_AMOUNT_LINE_RE =
   /^([A-Z]{2,3})\s+([0-9][0-9,]*\.?[0-9]*)\s*해외\s*(승인|취소|매출)$/;
@@ -127,19 +154,19 @@ function parseSms(rawMessage) {
     }
   }
 
-  // 4) 날짜/시간
+  // 4) 날짜/시간 (문자 원문은 항상 한국시간(KST) 기준 표기이므로 KST로 해석)
   const dtMatch = DATE_TIME_RE.exec(rawMessage);
   if (dtMatch) {
     const month = parseInt(dtMatch[1], 10) || 1;
     const day = parseInt(dtMatch[2], 10) || 1;
     const hour = parseInt(dtMatch[3], 10) || 0;
     const minute = parseInt(dtMatch[4], 10) || 0;
-    const now = new Date();
-    const year = now.getFullYear();
-    let candidate = new Date(year, month - 1, day, hour, minute);
-    const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const nowK = nowKst();
+    const year = nowK.year;
+    let candidate = kstDate(year, month, day, hour, minute);
+    const oneDayLater = new Date(Date.now() + 24 * 60 * 60 * 1000);
     if (candidate.getTime() > oneDayLater.getTime()) {
-      candidate = new Date(year - 1, month - 1, day, hour, minute);
+      candidate = kstDate(year - 1, month, day, hour, minute);
     }
     dateTime = candidate;
   }
@@ -184,7 +211,12 @@ function parseSms(rawMessage) {
 }
 
 function isLunchTime(dateTime) {
-  const minutes = dateTime.getHours() * 60 + dateTime.getMinutes();
+  // dateTime은 UTC epoch를 담은 Date 객체이므로, 서버 시스템 시간대와 무관하게
+  // 항상 KST 기준 시/분으로 변환해서 판별해야 한다. (getHours()는 서버 로컬
+  // 시간대를 쓰기 때문에 UTC 서버에서는 9시간 어긋난 결과가 나온다.)
+  const kstMs = dateTime.getTime() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  const minutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
   return minutes >= LUNCH_START_MIN && minutes <= LUNCH_END_MIN;
 }
 
