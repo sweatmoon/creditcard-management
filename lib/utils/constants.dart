@@ -23,6 +23,24 @@ const List<Map<String, String>> kDefaultMappingRules = [
   {'keyword': 'ANTHROPIC', 'detail': 'AI API 사용료', 'category': '기타'},
 ];
 
+/// 카드 "승인" 문자가 아닌 것으로 간주해 자동으로 걸러내야 하는 안내성 문자 키워드
+/// 예) "[롯데법인] 제****호님 09/04기준 1,960,371원 09/14 결제예정(국민)|"
+///     -> 결제(청구) 예정 안내 문자로, 개별 승인 내역이 아니므로 제외해야 함
+const List<String> kNonApprovalNoticeKeywords = [
+  '결제예정',
+  '결제 예정',
+  '출금예정',
+  '출금 예정',
+  '청구예정',
+  '청구 예정',
+  '이용대금',
+  '명세서',
+  '결제일',
+  '연체',
+  '자동이체',
+  '카드대금',
+];
+
 /// Hive box 이름
 const String kTransactionsBox = 'transactions_box';
 const String kSettingsBox = 'settings_box';

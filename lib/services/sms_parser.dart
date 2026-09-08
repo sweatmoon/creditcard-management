@@ -11,6 +11,7 @@ class ParsedSms {
   final String? cardInfo;
   final bool isOverseas; // 해외승인 문자 여부 (사용처가 심하게 잘리는 특성)
   final bool success;
+  final String? rejectReason; // 승인 문자가 아니라고 판단된 이유 (사용자 안내용)
 
   ParsedSms({
     this.merchant,
@@ -21,9 +22,11 @@ class ParsedSms {
     this.cardInfo,
     this.isOverseas = false,
     required this.success,
+    this.rejectReason,
   });
 
-  factory ParsedSms.failure() => ParsedSms(success: false);
+  factory ParsedSms.failure({String? reason}) =>
+      ParsedSms(success: false, rejectReason: reason);
 }
 
 /// 카드사 승인 문자 파싱 서비스
@@ -71,8 +74,23 @@ class SmsParser {
   // 일반적인(가로형) 금액 패턴: "150,000원"
   static final RegExp _genericAmountRegex = RegExp(r'([0-9][0-9,]*)\s*원');
 
+  /// 결제(청구) 예정 안내, 명세서 안내 등 "개별 승인 내역"이 아닌 안내성 문자인지 판단
+  ///
+  /// 예) "[롯데법인] 제****호님 09/04기준 1,960,371원 09/14 결제예정(국민)|"
+  ///     -> 이번달 전체 청구 예정 금액을 알려주는 안내 문자로, 실제 승인/매출 문자가 아님
+  static bool isNonApprovalNotice(String message) {
+    final upper = message.toUpperCase();
+    return kNonApprovalNoticeKeywords.any(
+      (kw) => upper.contains(kw.toUpperCase()),
+    );
+  }
+
   /// 카드 승인 문자로 보이는지 여부 (필터링용)
   static bool looksLikeCardApproval(String message) {
+    // 결제예정/명세서 등 안내성 문자는 "승인"/"매출" 단어가 없어도, 혹은 우연히
+    // 포함되어 있어도 개별 거래 승인 문자가 아니므로 항상 먼저 걸러낸다.
+    if (isNonApprovalNotice(message)) return false;
+
     final hasApprovalWord = message.contains('승인') || message.contains('매출');
     final hasKrwAmount = message.contains('원');
     final hasOverseasAmount = _overseasAmountLineRegex.hasMatch(
@@ -89,8 +107,13 @@ class SmsParser {
 
   /// 문자 본문을 파싱하여 사용처/금액/일시/카드명의자 등을 추출
   static ParsedSms parse(String rawMessage) {
+    if (isNonApprovalNotice(rawMessage)) {
+      return ParsedSms.failure(
+        reason: '카드 승인 문자가 아닌 결제(청구) 예정 안내 문자로 보입니다. 개별 승인 문자를 입력해주세요.',
+      );
+    }
     if (!looksLikeCardApproval(rawMessage)) {
-      return ParsedSms.failure();
+      return ParsedSms.failure(reason: '카드 승인 문자 형식을 인식하지 못했습니다.');
     }
 
     final lines = rawMessage

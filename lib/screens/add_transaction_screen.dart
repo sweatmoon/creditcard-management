@@ -27,6 +27,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   List<String> _selectedCoUsers = [];
   bool _showMealPrompt = false;
   String _currency = 'KRW';
+  bool _rejected = false; // 카드 승인 문자가 아닌 것으로 확정 판별된 경우 (수동입력도 막음)
 
   @override
   void initState() {
@@ -51,8 +52,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (text.isEmpty) return;
 
     final preview = provider.parseSms(text);
+    // 결제(청구) 예정 안내 문자 등 '확정적으로 승인 문자가 아님'이 판별된 경우에는
+    // 수동 입력조차 허용하지 않고 저장을 차단한다.
+    final rejected = !preview.success && preview.rejectReason != null;
+
     setState(() {
       _preview = preview;
+      _rejected = rejected;
       if (preview.success) {
         _merchantController.text = preview.merchant ?? '';
         _currency = preview.currency;
@@ -68,11 +74,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (!preview.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('문자에서 금액을 인식하지 못했습니다. 아래 항목을 직접 입력해주세요.')),
+        SnackBar(
+          content: Text(
+            preview.rejectReason ?? '문자에서 금액을 인식하지 못했습니다. 아래 항목을 직접 입력해주세요.',
+          ),
+        ),
       );
-      setState(() {
-        _selectedDateTime = DateTime.now();
-      });
+      if (!rejected) {
+        setState(() {
+          _selectedDateTime = DateTime.now();
+        });
+      }
     }
   }
 
@@ -132,7 +144,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasResult = _preview != null;
+    final hasResult = _preview != null && !_rejected;
 
     return Scaffold(
       appBar: AppBar(title: const Text('문자 추가')),
@@ -169,6 +181,37 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+              if (_rejected) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.danger.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.block, color: AppTheme.danger, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _preview?.rejectReason ??
+                              '카드 승인 문자가 아닌 것으로 판단되어 저장할 수 없습니다.',
+                          style: const TextStyle(
+                            color: AppTheme.danger,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (hasResult) ...[
                 const Divider(),
                 const SizedBox(height: 8),

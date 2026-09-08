@@ -27,7 +27,11 @@ class TransactionProvider extends ChangeNotifier {
   ParsedSmsPreview parseSms(String rawMessage) {
     final parsed = SmsParser.parse(rawMessage);
     if (!parsed.success) {
-      return ParsedSmsPreview(success: false, rawMessage: rawMessage);
+      return ParsedSmsPreview(
+        success: false,
+        rawMessage: rawMessage,
+        rejectReason: parsed.rejectReason,
+      );
     }
 
     final dateTime = parsed.dateTime ?? DateTime.now();
@@ -195,6 +199,7 @@ class ParsedSmsPreview {
   final bool isMealSuggested;
   final bool isOverseas;
   final bool autoMatched; // 해외 prefix 매칭 등으로 사용처가 자동 확정된 경우
+  final String? rejectReason; // 파싱 실패 시, 왜 거부되었는지 사용자에게 안내할 문구
 
   ParsedSmsPreview({
     required this.success,
@@ -209,5 +214,6 @@ class ParsedSmsPreview {
     this.isMealSuggested = false,
     this.isOverseas = false,
     this.autoMatched = false,
+    this.rejectReason,
   });
 }
