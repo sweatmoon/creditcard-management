@@ -27,12 +27,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
   static const double _colDateWidth = 92;
   static const double _colMerchantWidth = 130;
   static const double _colCategoryWidth = 96;
+  static const double _colDetailWidth = 140;
   static const double _colCoUsersWidth = 100;
   static const double _colAmountWidth = 90;
   static double get _tableWidth =>
       _colDateWidth +
       _colMerchantWidth +
       _colCategoryWidth +
+      _colDetailWidth +
       _colCoUsersWidth +
       _colAmountWidth +
       40; // padding 여유
@@ -365,6 +367,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
           SizedBox(
+            width: _colDetailWidth,
+            child: const Text(
+              '상세내용',
+              style: style,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
             width: _colCoUsersWidth,
             child: const Text(
               '공동사용자',
@@ -416,6 +426,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildTableRow(CardTransaction tx) {
     final color = AppTheme.categoryColor(tx.category);
     final coUsersText = tx.coUsers.isEmpty ? '-' : tx.coUsers.join(', ');
+    final detailText = tx.detail.isEmpty ? '-' : tx.detail;
     void openDetail() {
       Navigator.push(
         context,
@@ -469,6 +480,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+          ),
+          _cell(
+            width: _colDetailWidth,
+            displayText: detailText,
+            copyText: detailText,
+            onOpenDetail: openDetail,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
           ),
           _cell(
             width: _colCoUsersWidth,
