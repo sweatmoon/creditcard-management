@@ -52,3 +52,5 @@
 10.64.19.240 - - [08/Sep/2026 02:29:15] "GET /assets/FontManifest.json HTTP/1.1" 200 -
 10.64.19.240 - - [08/Sep/2026 02:29:18] "GET /assets/fonts/MaterialIcons-Regular.otf HTTP/1.1" 200 -
 10.64.19.240 - - [08/Sep/2026 02:29:22] "GET /flutter_service_worker.js?v=795648866 HTTP/1.1" 304 -
+10.64.19.240 - - [08/Sep/2026 02:29:36] "HEAD / HTTP/1.1" 200 -
+10.64.19.240 - - [08/Sep/2026 02:29:39] "GET /flutter_service_worker.js?v=795648866 HTTP/1.1" 304 -
