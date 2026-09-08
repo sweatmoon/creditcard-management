@@ -323,20 +323,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                   ),
                 ],
-                if (_selectedCategory == '식대') ...[
-                  const SizedBox(height: 16),
-                  const Text(
-                    '공동사용자',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                  ),
-                  const SizedBox(height: 8),
-                  CoUserSelector(
-                    selected: _selectedCoUsers,
-                    onChanged: (list) {
-                      setState(() => _selectedCoUsers = list);
-                    },
-                  ),
-                ],
+                const SizedBox(height: 16),
+                const Text(
+                  '공동사용자',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                const SizedBox(height: 8),
+                CoUserSelector(
+                  selected: _selectedCoUsers,
+                  onChanged: (list) {
+                    setState(() => _selectedCoUsers = list);
+                  },
+                ),
                 const SizedBox(height: 28),
                 SizedBox(
                   width: double.infinity,

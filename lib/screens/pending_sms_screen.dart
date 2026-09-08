@@ -328,18 +328,16 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                 );
               }).toList(),
             ),
-            if (_category == '식대') ...[
-              const SizedBox(height: 14),
-              const Text(
-                '공동사용자',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-              ),
-              const SizedBox(height: 6),
-              CoUserSelector(
-                selected: _coUsers,
-                onChanged: (list) => setState(() => _coUsers = list),
-              ),
-            ],
+            const SizedBox(height: 14),
+            const Text(
+              '공동사용자',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            CoUserSelector(
+              selected: _coUsers,
+              onChanged: (list) => setState(() => _coUsers = list),
+            ),
             const SizedBox(height: 10),
             Text(
               '거래일시: ${DateFormat('yyyy-MM-dd HH:mm').format(_dateTime)}',

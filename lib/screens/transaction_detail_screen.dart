@@ -343,21 +343,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     );
                   }).toList(),
                 ),
-                if (_category == '식대') ...[
-                  const SizedBox(height: 16),
-                  const Text(
-                    '공동사용자',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textSecondary,
-                    ),
+                const SizedBox(height: 16),
+                const Text(
+                  '공동사용자',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
                   ),
-                  const SizedBox(height: 8),
-                  CoUserSelector(
-                    selected: _coUsers,
-                    onChanged: (list) => setState(() => _coUsers = list),
-                  ),
-                ],
+                ),
+                const SizedBox(height: 8),
+                CoUserSelector(
+                  selected: _coUsers,
+                  onChanged: (list) => setState(() => _coUsers = list),
+                ),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
