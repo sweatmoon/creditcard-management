@@ -258,7 +258,7 @@ class _TeamMembersScreenState extends State<TeamMembersScreen> {
 class MappingRulesScreen extends StatelessWidget {
   const MappingRulesScreen({super.key});
 
-  void _showEditDialog(BuildContext context, {int? index, MappingRule? rule}) {
+  void _showEditDialog(BuildContext context, {MappingRule? rule}) {
     final keywordController = TextEditingController(text: rule?.keyword ?? '');
     final detailController = TextEditingController(text: rule?.detail ?? '');
     String category = rule?.category ?? '기타';
@@ -269,7 +269,7 @@ class MappingRulesScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (ctx, setState) {
             return AlertDialog(
-              title: Text(index == null ? '규칙 추가' : '규칙 수정'),
+              title: Text(rule == null ? '규칙 추가' : '규칙 수정'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -347,15 +347,16 @@ class MappingRulesScreen extends StatelessWidget {
                     final keyword = keywordController.text.trim();
                     if (keyword.isEmpty) return;
                     final newRule = MappingRule(
+                      id: rule?.id,
                       keyword: keyword,
                       detail: detailController.text.trim(),
                       category: category,
                     );
                     final provider = ctx.read<TransactionProvider>();
-                    if (index == null) {
+                    if (rule == null) {
                       provider.addMappingRule(newRule);
                     } else {
-                      provider.updateMappingRuleAt(index, newRule);
+                      provider.updateMappingRule(newRule);
                     }
                     Navigator.pop(ctx);
                   },
@@ -424,11 +425,8 @@ class MappingRulesScreen extends StatelessWidget {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit, size: 20),
-                            onPressed: () => _showEditDialog(
-                              context,
-                              index: index,
-                              rule: rule,
-                            ),
+                            onPressed: () =>
+                                _showEditDialog(context, rule: rule),
                           ),
                           IconButton(
                             icon: const Icon(
@@ -439,7 +437,7 @@ class MappingRulesScreen extends StatelessWidget {
                             onPressed: () {
                               context
                                   .read<TransactionProvider>()
-                                  .removeMappingRuleAt(index);
+                                  .removeMappingRule(rule);
                             },
                           ),
                         ],

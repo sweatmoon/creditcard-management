@@ -52,7 +52,8 @@ class CardTransaction {
     );
   }
 
-  Map<String, dynamic> toMap() {
+  /// API(JSON) 전송용 직렬화 - 날짜는 ISO8601 문자열로 변환
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'merchant': merchant,
@@ -61,53 +62,82 @@ class CardTransaction {
       'category': category,
       'detail': detail,
       'coUsers': coUsers,
-      'dateTime': dateTime,
+      'dateTime': dateTime.toIso8601String(),
       'cardHolder': cardHolder,
       'rawMessage': rawMessage,
-      'createdAt': createdAt,
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
-  factory CardTransaction.fromMap(Map<dynamic, dynamic> map) {
+  /// API(JSON) 응답 역직렬화 - 날짜는 문자열(ISO8601)로 내려오므로 파싱
+  factory CardTransaction.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic v, DateTime fallback) {
+      if (v == null) return fallback;
+      if (v is DateTime) return v;
+      return DateTime.tryParse(v.toString())?.toLocal() ?? fallback;
+    }
+
     return CardTransaction(
-      id: map['id'] as String? ?? '',
-      merchant: map['merchant'] as String? ?? '',
-      amount: (map['amount'] as num?)?.toDouble() ?? 0,
-      currency: map['currency'] as String? ?? 'KRW',
-      category: map['category'] as String? ?? '기타',
-      detail: map['detail'] as String? ?? '',
+      id: json['id'] as String? ?? '',
+      merchant: json['merchant'] as String? ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      currency: json['currency'] as String? ?? 'KRW',
+      category: json['category'] as String? ?? '기타',
+      detail: json['detail'] as String? ?? '',
       coUsers:
-          (map['coUsers'] as List?)?.map((e) => e.toString()).toList() ??
+          (json['coUsers'] as List?)?.map((e) => e.toString()).toList() ??
           <String>[],
-      dateTime: map['dateTime'] as DateTime? ?? DateTime.now(),
-      cardHolder: map['cardHolder'] as String?,
-      rawMessage: map['rawMessage'] as String? ?? '',
-      createdAt: map['createdAt'] as DateTime? ?? DateTime.now(),
+      dateTime: parseDate(json['dateTime'], DateTime.now()),
+      cardHolder: json['cardHolder'] as String?,
+      rawMessage: json['rawMessage'] as String? ?? '',
+      createdAt: parseDate(json['createdAt'], DateTime.now()),
     );
   }
 }
 
 /// 특정 사용처 자동 매핑 규칙
 class MappingRule {
+  final int? id; // DB(Postgres)의 mapping_rules.id (서버에서 생성됨, 신규 생성 시 null)
   final String keyword; // 사용처에 포함될 키워드
   final String detail; // 자동 지정될 상세내용
   final String category; // 자동 지정될 계정과목
 
   MappingRule({
+    this.id,
     required this.keyword,
     required this.detail,
     required this.category,
   });
 
-  Map<String, dynamic> toMap() {
-    return {'keyword': keyword, 'detail': detail, 'category': category};
+  MappingRule copyWith({
+    int? id,
+    String? keyword,
+    String? detail,
+    String? category,
+  }) {
+    return MappingRule(
+      id: id ?? this.id,
+      keyword: keyword ?? this.keyword,
+      detail: detail ?? this.detail,
+      category: category ?? this.category,
+    );
   }
 
-  factory MappingRule.fromMap(Map<dynamic, dynamic> map) {
+  Map<String, dynamic> toJson() {
+    return {
+      if (id != null) 'id': id,
+      'keyword': keyword,
+      'detail': detail,
+      'category': category,
+    };
+  }
+
+  factory MappingRule.fromJson(Map<String, dynamic> json) {
     return MappingRule(
-      keyword: map['keyword'] as String? ?? '',
-      detail: map['detail'] as String? ?? '',
-      category: map['category'] as String? ?? '기타',
+      id: json['id'] as int?,
+      keyword: json['keyword'] as String? ?? '',
+      detail: json['detail'] as String? ?? '',
+      category: json['category'] as String? ?? '기타',
     );
   }
 }

@@ -10,3 +10,4 @@ windows/
 test/
 *.log
 *.iml
+server/node_modules/

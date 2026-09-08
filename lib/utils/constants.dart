@@ -40,11 +40,3 @@ const List<String> kNonApprovalNoticeKeywords = [
   '자동이체',
   '카드대금',
 ];
-
-/// Hive box 이름
-const String kTransactionsBox = 'transactions_box';
-const String kSettingsBox = 'settings_box';
-
-/// Hive settings box 키
-const String kSettingsKeyTeamMembers = 'team_members';
-const String kSettingsKeyMappingRules = 'mapping_rules';

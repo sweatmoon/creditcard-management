@@ -11,15 +11,24 @@ RUN flutter pub get
 COPY . .
 RUN flutter build web --release
 
-# ---------- 2단계: 정적 파일 서빙 (nginx) ----------
-FROM nginx:alpine AS runtime
+# ---------- 2단계: API 서버 + 정적 파일 서빙 (Node.js) ----------
+FROM node:20-alpine AS runtime
 
-# Railway는 매 배포마다 다른 $PORT를 주입하므로, nginx 설정에서 이를 반영해야 함
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+WORKDIR /app
+
+# 서버 의존성 설치
+COPY server/package.json ./
+RUN npm install --omit=dev
+
+# 서버 코드 복사
+COPY server/db.js server/index.js ./
+
+# Flutter 웹 빌드 결과물을 정적 파일 디렉터리로 복사
+COPY --from=build /app/build/web ./public
+
+# Railway가 주입하는 $PORT를 사용 (로컬 기본값 8080)
 ENV PORT=8080
-
-COPY --from=build /app/build/web /usr/share/nginx/html
-
+ENV STATIC_DIR=/app/public
 EXPOSE 8080
 
-CMD ["/bin/sh", "-c", "envsubst '$PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+CMD ["node", "index.js"]

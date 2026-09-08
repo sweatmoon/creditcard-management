@@ -5,6 +5,10 @@ import '../services/sms_parser.dart';
 import '../services/storage_service.dart';
 
 /// 앱 전역 상태 관리 (거래내역, 팀원, 매핑규칙)
+///
+/// 데이터는 Railway Postgres에 저장되며, StorageService를 통해 HTTP API로
+/// 조회/저장한다. 따라서 PC 웹과 모바일 웹이 동일한 서버(DB)를 바라보게 되어
+/// 어느 기기에서 입력하든 데이터가 자동으로 동기화된다.
 class TransactionProvider extends ChangeNotifier {
   static const _uuid = Uuid();
 
@@ -12,15 +16,39 @@ class TransactionProvider extends ChangeNotifier {
   List<String> _teamMembers = [];
   List<MappingRule> _mappingRules = [];
 
+  bool _isLoading = false;
+  String? _error;
+
   List<CardTransaction> get transactions => _transactions;
   List<String> get teamMembers => _teamMembers;
   List<MappingRule> get mappingRules => _mappingRules;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
 
-  void loadAll() {
-    _transactions = StorageService.getAllTransactions();
-    _teamMembers = StorageService.getTeamMembers();
-    _mappingRules = StorageService.getMappingRules();
+  /// 서버(Railway Postgres)에서 전체 데이터를 새로 불러온다.
+  Future<void> loadAll() async {
+    _isLoading = true;
+    _error = null;
     notifyListeners();
+    try {
+      final results = await Future.wait([
+        StorageService.getAllTransactions(),
+        StorageService.getTeamMembers(),
+        StorageService.getMappingRules(),
+      ]);
+      _transactions = results[0] as List<CardTransaction>;
+      _teamMembers = results[1] as List<String>;
+      _mappingRules = results[2] as List<MappingRule>;
+      _error = null;
+    } catch (e) {
+      _error = '데이터를 불러오지 못했습니다: $e';
+      if (kDebugMode) {
+        debugPrint('TransactionProvider.loadAll error: $e');
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// SMS 원문을 파싱하여 미리보기용 결과를 생성 (저장 전 사용자 확인용)
@@ -94,10 +122,10 @@ class TransactionProvider extends ChangeNotifier {
     // 공동사용자 중 리스트에 없는 신규 인원 자동 등록
     if (coUsers.isNotEmpty) {
       await StorageService.addTeamMembers(coUsers);
-      _teamMembers = StorageService.getTeamMembers();
+      _teamMembers = await StorageService.getTeamMembers();
     }
 
-    _transactions = StorageService.getAllTransactions();
+    _transactions = await StorageService.getAllTransactions();
     notifyListeners();
   }
 
@@ -105,45 +133,49 @@ class TransactionProvider extends ChangeNotifier {
     await StorageService.updateTransaction(tx);
     if (tx.coUsers.isNotEmpty) {
       await StorageService.addTeamMembers(tx.coUsers);
-      _teamMembers = StorageService.getTeamMembers();
+      _teamMembers = await StorageService.getTeamMembers();
     }
-    _transactions = StorageService.getAllTransactions();
+    _transactions = await StorageService.getAllTransactions();
     notifyListeners();
   }
 
   Future<void> deleteTransaction(String id) async {
     await StorageService.deleteTransaction(id);
-    _transactions = StorageService.getAllTransactions();
+    _transactions = await StorageService.getAllTransactions();
     notifyListeners();
   }
 
   Future<void> addTeamMember(String name) async {
     await StorageService.addTeamMember(name);
-    _teamMembers = StorageService.getTeamMembers();
+    _teamMembers = await StorageService.getTeamMembers();
     notifyListeners();
   }
 
   Future<void> removeTeamMember(String name) async {
     await StorageService.removeTeamMember(name);
-    _teamMembers = StorageService.getTeamMembers();
+    _teamMembers = await StorageService.getTeamMembers();
     notifyListeners();
   }
 
   Future<void> addMappingRule(MappingRule rule) async {
     await StorageService.addMappingRule(rule);
-    _mappingRules = StorageService.getMappingRules();
+    _mappingRules = await StorageService.getMappingRules();
     notifyListeners();
   }
 
-  Future<void> updateMappingRuleAt(int index, MappingRule rule) async {
-    await StorageService.updateMappingRuleAt(index, rule);
-    _mappingRules = StorageService.getMappingRules();
+  /// rule.id가 있는(=서버에 이미 존재하는) 규칙을 수정
+  Future<void> updateMappingRule(MappingRule rule) async {
+    if (rule.id == null) return;
+    await StorageService.updateMappingRule(rule.id!, rule);
+    _mappingRules = await StorageService.getMappingRules();
     notifyListeners();
   }
 
-  Future<void> removeMappingRuleAt(int index) async {
-    await StorageService.removeMappingRuleAt(index);
-    _mappingRules = StorageService.getMappingRules();
+  /// rule.id가 있는(=서버에 이미 존재하는) 규칙을 삭제
+  Future<void> removeMappingRule(MappingRule rule) async {
+    if (rule.id == null) return;
+    await StorageService.removeMappingRule(rule.id!);
+    _mappingRules = await StorageService.getMappingRules();
     notifyListeners();
   }
 
