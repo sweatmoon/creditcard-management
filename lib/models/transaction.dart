@@ -2,7 +2,8 @@
 class CardTransaction {
   final String id;
   final String merchant; // 사용처
-  final double amount; // 금액
+  final double amount; // 금액 (해당 통화 기준 그대로, 환산하지 않음)
+  final String currency; // 통화 (KRW, USD 등)
   final String category; // 계정과목
   final String detail; // 상세내용
   final List<String> coUsers; // 공동사용자 (식대인 경우 사용)
@@ -21,12 +22,14 @@ class CardTransaction {
     required this.dateTime,
     required this.rawMessage,
     required this.createdAt,
+    this.currency = 'KRW',
     this.cardHolder,
   });
 
   CardTransaction copyWith({
     String? merchant,
     double? amount,
+    String? currency,
     String? category,
     String? detail,
     List<String>? coUsers,
@@ -38,6 +41,7 @@ class CardTransaction {
       id: id,
       merchant: merchant ?? this.merchant,
       amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
       category: category ?? this.category,
       detail: detail ?? this.detail,
       coUsers: coUsers ?? this.coUsers,
@@ -53,6 +57,7 @@ class CardTransaction {
       'id': id,
       'merchant': merchant,
       'amount': amount,
+      'currency': currency,
       'category': category,
       'detail': detail,
       'coUsers': coUsers,
@@ -68,6 +73,7 @@ class CardTransaction {
       id: map['id'] as String? ?? '',
       merchant: map['merchant'] as String? ?? '',
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
+      currency: map['currency'] as String? ?? 'KRW',
       category: map['category'] as String? ?? '기타',
       detail: map['detail'] as String? ?? '',
       coUsers:

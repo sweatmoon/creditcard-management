@@ -5,6 +5,7 @@ import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../services/export_service.dart';
 import '../utils/constants.dart';
+import '../utils/formatters.dart';
 import '../utils/theme.dart';
 import 'transaction_detail_screen.dart';
 
@@ -140,8 +141,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<TransactionProvider>();
     final list = _filtered(provider);
-    final currency = NumberFormat('#,###');
-    final total = list.fold(0.0, (sum, t) => sum + t.amount);
+    final totalByCurrency = <String, double>{};
+    for (final t in list) {
+      totalByCurrency[t.currency] =
+          (totalByCurrency[t.currency] ?? 0) + t.amount;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('내역 / 정산')),
@@ -231,12 +235,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     '${list.length}건',
                     style: const TextStyle(color: AppTheme.textSecondary),
                   ),
-                  Text(
-                    '${currency.format(total)}원',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 10,
+                    runSpacing: 4,
+                    children: totalByCurrency.entries.map((e) {
+                      return Text(
+                        AmountFormatter.format(e.value, e.key),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ],
               ),
@@ -316,7 +327,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '${currency.format(tx.amount)}원',
+                                  AmountFormatter.format(
+                                    tx.amount,
+                                    tx.currency,
+                                  ),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),

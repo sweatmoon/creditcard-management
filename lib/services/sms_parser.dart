@@ -5,17 +5,21 @@ import '../utils/constants.dart';
 class ParsedSms {
   final String? merchant;
   final double? amount;
+  final String currency; // KRW, USD 등
   final DateTime? dateTime;
   final String? cardHolder;
   final String? cardInfo;
+  final bool isOverseas; // 해외승인 문자 여부 (사용처가 심하게 잘리는 특성)
   final bool success;
 
   ParsedSms({
     this.merchant,
     this.amount,
+    this.currency = 'KRW',
     this.dateTime,
     this.cardHolder,
     this.cardInfo,
+    this.isOverseas = false,
     required this.success,
   });
 
@@ -24,7 +28,7 @@ class ParsedSms {
 
 /// 카드사 승인 문자 파싱 서비스
 ///
-/// 지원 형식 예시 (롯데카드 등 세로형 문자):
+/// 지원 형식 예시 1 (롯데카드 등 국내 세로형 문자):
 /// ```
 /// [Web발신]
 /// 취향마
@@ -33,10 +37,25 @@ class ParsedSms {
 /// 일시불 05/15 11:50
 /// 누적2,379,996원
 /// ```
+///
+/// 지원 형식 예시 2 (해외승인 - 사용처가 심하게 잘림, 통화는 USD 등):
+/// ```
+/// [Web발신]
+/// GE
+/// USD 109.99 해외승인
+/// 제안 김현호 롯데법인7283
+/// 일시불 08/08 21:43
+/// 누적937,460원
+/// ```
 class SmsParser {
-  // 세로형(줄바꿈) 금액+승인 라인 패턴: "69,700원 승인"
+  // 세로형(줄바꿈) 금액+승인 라인 패턴 (국내): "69,700원 승인"
   static final RegExp _amountLineRegex = RegExp(
     r'^([0-9][0-9,]*)\s*원\s*(승인|취소|매출)$',
+  );
+
+  // 해외승인 금액 라인 패턴: "USD 109.99 해외승인"
+  static final RegExp _overseasAmountLineRegex = RegExp(
+    r'^([A-Z]{2,3})\s+([0-9][0-9,]*\.?[0-9]*)\s*해외\s*(승인|취소|매출)$',
   );
 
   // 카드명의자 + 카드정보 라인 패턴: "제안 김현호 롯데법인7283"
@@ -54,8 +73,18 @@ class SmsParser {
 
   /// 카드 승인 문자로 보이는지 여부 (필터링용)
   static bool looksLikeCardApproval(String message) {
-    return message.contains('원') &&
-        (message.contains('승인') || message.contains('매출'));
+    final hasApprovalWord = message.contains('승인') || message.contains('매출');
+    final hasKrwAmount = message.contains('원');
+    final hasOverseasAmount = _overseasAmountLineRegex.hasMatch(
+      message
+          .split('\n')
+          .map((e) => e.trim())
+          .firstWhere(
+            (l) => _overseasAmountLineRegex.hasMatch(l),
+            orElse: () => '',
+          ),
+    );
+    return hasApprovalWord && (hasKrwAmount || hasOverseasAmount);
   }
 
   /// 문자 본문을 파싱하여 사용처/금액/일시/카드명의자 등을 추출
@@ -73,18 +102,35 @@ class SmsParser {
 
     String? merchant;
     double? amount;
+    String currency = 'KRW';
     DateTime? dateTime;
     String? cardHolder;
     String? cardInfo;
+    bool isOverseas = false;
 
-    // 1) 세로형 포맷 우선 시도: "금액원 승인" 라인을 찾는다
+    // 1) 해외승인 패턴 우선 시도: "USD 109.99 해외승인"
     int amountLineIndex = -1;
     for (int i = 0; i < lines.length; i++) {
-      final m = _amountLineRegex.firstMatch(lines[i]);
+      final m = _overseasAmountLineRegex.firstMatch(lines[i]);
       if (m != null) {
-        amount = _parseAmount(m.group(1));
+        currency = m.group(1) ?? 'USD';
+        amount = _parseAmount(m.group(2));
         amountLineIndex = i;
+        isOverseas = true;
         break;
+      }
+    }
+
+    // 2) 국내 세로형 포맷 시도: "69,700원 승인"
+    if (amountLineIndex == -1) {
+      for (int i = 0; i < lines.length; i++) {
+        final m = _amountLineRegex.firstMatch(lines[i]);
+        if (m != null) {
+          amount = _parseAmount(m.group(1));
+          amountLineIndex = i;
+          currency = 'KRW';
+          break;
+        }
       }
     }
 
@@ -98,7 +144,7 @@ class SmsParser {
       }
     }
 
-    // 2) 카드명의자 + 카드정보 라인 탐색
+    // 3) 카드명의자 + 카드정보 라인 탐색
     for (final line in lines) {
       final m = _cardHolderLineRegex.firstMatch(line);
       if (m != null) {
@@ -108,7 +154,7 @@ class SmsParser {
       }
     }
 
-    // 3) 날짜/시간 탐색 (전체 텍스트 대상)
+    // 4) 날짜/시간 탐색 (전체 텍스트 대상)
     final dtMatch = _dateTimeRegex.firstMatch(rawMessage);
     if (dtMatch != null) {
       final month = int.tryParse(dtMatch.group(1) ?? '') ?? 1;
@@ -125,7 +171,7 @@ class SmsParser {
       dateTime = candidate;
     }
 
-    // 4) 세로형에서 금액을 못 찾았다면 일반(가로형) 문자 형식으로 재시도
+    // 5) 세로형에서 금액을 못 찾았다면 일반(가로형) 문자 형식으로 재시도
     if (amount == null) {
       // "누적" 금액 라인은 제외하고 첫 번째 금액을 채택
       for (final line in lines) {
@@ -133,6 +179,7 @@ class SmsParser {
         final m = _genericAmountRegex.firstMatch(line);
         if (m != null) {
           amount = _parseAmount(m.group(1));
+          currency = 'KRW';
           break;
         }
       }
@@ -143,6 +190,7 @@ class SmsParser {
       // 첫 번째 남은 줄을 사용처 후보로 사용
       for (final line in lines) {
         if (_amountLineRegex.hasMatch(line)) continue;
+        if (_overseasAmountLineRegex.hasMatch(line)) continue;
         if (_dateTimeRegex.hasMatch(line)) continue;
         if (_cardHolderLineRegex.hasMatch(line)) continue;
         if (line.contains('누적')) continue;
@@ -156,9 +204,11 @@ class SmsParser {
     return ParsedSms(
       merchant: merchant,
       amount: amount,
+      currency: currency,
       dateTime: dateTime ?? DateTime.now(),
       cardHolder: cardHolder,
       cardInfo: cardInfo,
+      isOverseas: isOverseas,
       success: success,
     );
   }
@@ -176,37 +226,62 @@ class SmsParser {
   }
 
   /// 특정 사용처 키워드 매핑 규칙 적용
-  /// 매칭되면 (category, detail)을 반환, 매칭 안되면 null
+  ///
+  /// - 국내 문자: 사용처/원문에 키워드가 "포함"되어 있으면 매칭 (기존 방식)
+  /// - 해외승인 문자: 사용처 이름이 카드사 문자 바이트 제한으로 심하게 잘려서
+  ///   ("GENSPARK.AI" -> "GE" 또는 "G" 등) 완전한 키워드가 나타나지 않으므로,
+  ///   잘린 사용처가 등록된 키워드의 "앞부분(prefix)"과 일치하면 매칭 처리한다.
   static MappingRule? findMappingRule(
     String merchant,
     String rawMessage,
-    List<MappingRule> rules,
-  ) {
+    List<MappingRule> rules, {
+    bool isOverseas = false,
+  }) {
     final target = ('$merchant $rawMessage').toUpperCase();
+    final trimmedMerchant = merchant.trim().toUpperCase();
+
     for (final rule in rules) {
       if (rule.keyword.isEmpty) continue;
-      if (target.contains(rule.keyword.toUpperCase())) {
+      final keyword = rule.keyword.toUpperCase();
+
+      // 1) 일반 포함 매칭 (국내 문자 등 사용처가 온전한 경우)
+      if (target.contains(keyword)) {
+        return rule;
+      }
+
+      // 2) 해외승인 접두어(prefix) 매칭
+      //    잘린 사용처(예: "G", "GE", "ANT")가 등록 키워드의 시작 부분과 일치하면 매칭
+      if (isOverseas &&
+          trimmedMerchant.isNotEmpty &&
+          keyword.startsWith(trimmedMerchant)) {
         return rule;
       }
     }
     return null;
   }
 
-  /// 자동 분류 로직: 식대(점심시간) > 매핑규칙 > 기타
+  /// 자동 분류 로직: 매핑규칙(해외 prefix 포함) > 식대(점심시간) > 기타
   /// 반환: (category, detail, isMealSuggested)
   static ClassificationResult classify({
     required DateTime dateTime,
     required String merchant,
     required String rawMessage,
     required List<MappingRule> mappingRules,
+    bool isOverseas = false,
   }) {
     // 1) 매핑 규칙이 우선 적용 (특정 사용처는 항상 지정된 값으로)
-    final rule = findMappingRule(merchant, rawMessage, mappingRules);
+    final rule = findMappingRule(
+      merchant,
+      rawMessage,
+      mappingRules,
+      isOverseas: isOverseas,
+    );
     if (rule != null) {
       return ClassificationResult(
         category: rule.category,
         detail: rule.detail,
         isMealSuggested: false,
+        matchedKeyword: rule.keyword,
       );
     }
 
@@ -232,10 +307,12 @@ class ClassificationResult {
   final String category;
   final String detail;
   final bool isMealSuggested;
+  final String? matchedKeyword; // 해외 prefix 매칭 등으로 확정된 정식 사용처명
 
   ClassificationResult({
     required this.category,
     required this.detail,
     required this.isMealSuggested,
+    this.matchedKeyword,
   });
 }

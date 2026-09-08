@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../utils/constants.dart';
+import '../utils/formatters.dart';
 import '../utils/theme.dart';
 import '../widgets/co_user_selector.dart';
 
@@ -26,6 +27,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   late String _category;
   late DateTime _dateTime;
   late List<String> _coUsers;
+  late String _currency;
   bool _editing = false;
 
   @override
@@ -33,8 +35,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     super.initState();
     final tx = widget.transaction;
     _merchantController = TextEditingController(text: tx.merchant);
+    _currency = tx.currency;
     _amountController = TextEditingController(
-      text: tx.amount.toStringAsFixed(0),
+      text: _currency == 'KRW'
+          ? tx.amount.toStringAsFixed(0)
+          : tx.amount.toStringAsFixed(2),
     );
     _detailController = TextEditingController(text: tx.detail);
     _category = tx.category;
@@ -65,6 +70,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final updated = widget.transaction.copyWith(
       merchant: merchant,
       amount: amount,
+      currency: _currency,
       category: _category,
       detail: _detailController.text.trim(),
       coUsers: _coUsers,
@@ -111,8 +117,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat('#,###');
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('거래 상세'),
@@ -172,12 +176,25 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '${currency.format(double.tryParse(_amountController.text) ?? 0)}원',
+                        AmountFormatter.format(
+                          double.tryParse(_amountController.text) ?? 0,
+                          _currency,
+                        ),
                         style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      if (_currency != 'KRW') ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '해외 결제 ($_currency, 환전 없이 원문 금액 그대로 저장됨)',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       Text(
                         DateFormat(
@@ -224,9 +241,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 _editField('사용처', _merchantController),
                 const SizedBox(height: 12),
                 _editField(
-                  '금액 (원)',
+                  _currency == 'KRW' ? '금액 (원)' : '금액 ($_currency)',
                   _amountController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _editField('상세내용', _detailController),

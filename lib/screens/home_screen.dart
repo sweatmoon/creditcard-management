@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/transaction_provider.dart';
+import '../utils/formatters.dart';
 import '../utils/theme.dart';
 import 'add_transaction_screen.dart';
 import 'transaction_detail_screen.dart';
@@ -15,9 +16,11 @@ class HomeScreen extends StatelessWidget {
     final now = DateTime.now();
     final monthLabel = DateFormat('yyyy년 M월').format(now);
     final total = provider.thisMonthTotal;
+    final totalByCurrency = provider.thisMonthTotalByCurrency;
+    final foreignTotals = Map<String, double>.from(totalByCurrency)
+      ..remove('KRW');
     final byCategory = provider.thisMonthByCategory;
     final recent = provider.transactions.take(8).toList();
-    final currency = NumberFormat('#,###');
 
     return Scaffold(
       appBar: AppBar(title: const Text('법인카드 정산')),
@@ -73,7 +76,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${currency.format(total)}원',
+                      AmountFormatter.format(total, 'KRW'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 30,
@@ -88,6 +91,33 @@ class HomeScreen extends StatelessWidget {
                         fontSize: 13,
                       ),
                     ),
+                    if (foreignTotals.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        children: foreignTotals.entries.map((e) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '해외 · ${AmountFormatter.format(e.value, e.key)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -142,7 +172,7 @@ class HomeScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${currency.format(entry.value)}원',
+                              AmountFormatter.format(entry.value, 'KRW'),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -272,7 +302,10 @@ class HomeScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '${currency.format(tx.amount)}원',
+                                  AmountFormatter.format(
+                                    tx.amount,
+                                    tx.currency,
+                                  ),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14.5,

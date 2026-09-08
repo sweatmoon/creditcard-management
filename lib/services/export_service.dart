@@ -25,7 +25,7 @@ class ExportService {
       verticalAlign: xl.VerticalAlign.Center,
     );
 
-    final headers = ['날짜', '시간', '사용처', '금액', '계정과목', '상세내용', '공동사용자'];
+    final headers = ['날짜', '시간', '사용처', '금액', '통화', '계정과목', '상세내용', '공동사용자'];
 
     for (int i = 0; i < headers.length; i++) {
       final cell = sheet.cell(
@@ -38,11 +38,13 @@ class ExportService {
     final dateFmt = DateFormat('yyyy-MM-dd');
     final timeFmt = DateFormat('HH:mm');
 
-    double total = 0;
+    // 통화별 합계 (KRW/USD 등을 섞어서 더하지 않도록 분리 집계)
+    final totalByCurrency = <String, double>{};
     for (int r = 0; r < transactions.length; r++) {
       final tx = transactions[r];
       final rowIndex = r + 1;
-      total += tx.amount;
+      totalByCurrency[tx.currency] =
+          (totalByCurrency[tx.currency] ?? 0) + tx.amount;
 
       sheet
           .cell(
@@ -77,55 +79,83 @@ class ExportService {
             xl.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex),
           )
           .value = xl.TextCellValue(
-        tx.category,
+        tx.currency,
       );
       sheet
           .cell(
             xl.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex),
           )
           .value = xl.TextCellValue(
-        tx.detail,
+        tx.category,
       );
       sheet
           .cell(
             xl.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex),
           )
           .value = xl.TextCellValue(
+        tx.detail,
+      );
+      sheet
+          .cell(
+            xl.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex),
+          )
+          .value = xl.TextCellValue(
         tx.coUsers.join(', '),
       );
     }
 
-    // 합계 행 추가
-    final totalRowIndex = transactions.length + 1;
-    sheet
-        .cell(
-          xl.CellIndex.indexByColumnRow(
-            columnIndex: 2,
-            rowIndex: totalRowIndex,
-          ),
-        )
-        .value = xl.TextCellValue(
-      '합계',
-    );
-    sheet
-        .cell(
-          xl.CellIndex.indexByColumnRow(
-            columnIndex: 3,
-            rowIndex: totalRowIndex,
-          ),
-        )
-        .value = xl.DoubleCellValue(
-      total,
-    );
+    // 합계 행 추가 (통화별로 한 행씩 - KRW/USD 등을 섞어서 더하지 않음)
+    var totalRowIndex = transactions.length + 1;
+    // 통화 표시 순서를 안정적으로 하기 위해 KRW를 먼저, 나머지는 알파벳 순으로
+    final currencyKeys = totalByCurrency.keys.toList()
+      ..sort((a, b) {
+        if (a == 'KRW') return -1;
+        if (b == 'KRW') return 1;
+        return a.compareTo(b);
+      });
+    for (final cur in currencyKeys) {
+      sheet
+          .cell(
+            xl.CellIndex.indexByColumnRow(
+              columnIndex: 2,
+              rowIndex: totalRowIndex,
+            ),
+          )
+          .value = xl.TextCellValue(
+        '합계 ($cur)',
+      );
+      sheet
+          .cell(
+            xl.CellIndex.indexByColumnRow(
+              columnIndex: 3,
+              rowIndex: totalRowIndex,
+            ),
+          )
+          .value = xl.DoubleCellValue(
+        totalByCurrency[cur]!,
+      );
+      sheet
+          .cell(
+            xl.CellIndex.indexByColumnRow(
+              columnIndex: 4,
+              rowIndex: totalRowIndex,
+            ),
+          )
+          .value = xl.TextCellValue(
+        cur,
+      );
+      totalRowIndex++;
+    }
 
     // 컬럼 너비 설정
     sheet.setColumnWidth(0, 12);
     sheet.setColumnWidth(1, 8);
     sheet.setColumnWidth(2, 20);
     sheet.setColumnWidth(3, 14);
-    sheet.setColumnWidth(4, 22);
-    sheet.setColumnWidth(5, 24);
+    sheet.setColumnWidth(4, 10);
+    sheet.setColumnWidth(5, 22);
     sheet.setColumnWidth(6, 24);
+    sheet.setColumnWidth(7, 24);
 
     final bytes = excel.save();
     return bytes ?? <int>[];

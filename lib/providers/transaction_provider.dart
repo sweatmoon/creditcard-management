@@ -31,25 +31,33 @@ class TransactionProvider extends ChangeNotifier {
     }
 
     final dateTime = parsed.dateTime ?? DateTime.now();
-    final merchant = parsed.merchant ?? '알 수 없음';
+    final rawMerchant = parsed.merchant ?? '알 수 없음';
 
     final classification = SmsParser.classify(
       dateTime: dateTime,
-      merchant: merchant,
+      merchant: rawMerchant,
       rawMessage: rawMessage,
       mappingRules: _mappingRules,
+      isOverseas: parsed.isOverseas,
     );
+
+    // 해외승인 문자에서 접두어(prefix) 매칭으로 사용처가 확정된 경우,
+    // 잘린 사용처("G", "ANT" 등) 대신 정식 키워드("GENSPARK.AI")로 교정
+    final merchant = classification.matchedKeyword ?? rawMerchant;
 
     return ParsedSmsPreview(
       success: true,
       rawMessage: rawMessage,
       merchant: merchant,
       amount: parsed.amount ?? 0,
+      currency: parsed.currency,
       dateTime: dateTime,
       cardHolder: parsed.cardHolder,
       category: classification.category,
       detail: classification.detail,
       isMealSuggested: classification.isMealSuggested,
+      isOverseas: parsed.isOverseas,
+      autoMatched: classification.matchedKeyword != null,
     );
   }
 
@@ -60,6 +68,7 @@ class TransactionProvider extends ChangeNotifier {
     required String detail,
     required List<String> coUsers,
     required DateTime dateTime,
+    String currency = 'KRW',
     String? cardHolder,
     required String rawMessage,
   }) async {
@@ -67,6 +76,7 @@ class TransactionProvider extends ChangeNotifier {
       id: _uuid.v4(),
       merchant: merchant,
       amount: amount,
+      currency: currency,
       category: category,
       detail: detail,
       coUsers: coUsers,
@@ -133,22 +143,32 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------- 통계 helper ----------------
+  // ---------------- 통계 helper (통화별로 분리 집계) ----------------
 
-  double get thisMonthTotal {
+  /// 이번달 통화별 합계. 예: {'KRW': 1234500, 'USD': 243.95}
+  Map<String, double> get thisMonthTotalByCurrency {
     final now = DateTime.now();
-    return _transactions
-        .where(
-          (t) => t.dateTime.year == now.year && t.dateTime.month == now.month,
-        )
-        .fold(0.0, (sum, t) => sum + t.amount);
+    final map = <String, double>{};
+    for (final t in _transactions) {
+      if (t.dateTime.year == now.year && t.dateTime.month == now.month) {
+        map[t.currency] = (map[t.currency] ?? 0) + t.amount;
+      }
+    }
+    return map;
+  }
+
+  /// 이번달 원화(KRW) 합계만 (기존 호환용 - 홈 화면 대표 숫자)
+  double get thisMonthTotal {
+    return thisMonthTotalByCurrency['KRW'] ?? 0;
   }
 
   Map<String, double> get thisMonthByCategory {
     final now = DateTime.now();
     final map = <String, double>{};
     for (final t in _transactions) {
-      if (t.dateTime.year == now.year && t.dateTime.month == now.month) {
+      if (t.dateTime.year == now.year &&
+          t.dateTime.month == now.month &&
+          t.currency == 'KRW') {
         map[t.category] = (map[t.category] ?? 0) + t.amount;
       }
     }
@@ -167,21 +187,27 @@ class ParsedSmsPreview {
   final String rawMessage;
   final String? merchant;
   final double amount;
+  final String currency;
   final DateTime? dateTime;
   final String? cardHolder;
   final String category;
   final String detail;
   final bool isMealSuggested;
+  final bool isOverseas;
+  final bool autoMatched; // 해외 prefix 매칭 등으로 사용처가 자동 확정된 경우
 
   ParsedSmsPreview({
     required this.success,
     required this.rawMessage,
     this.merchant,
     this.amount = 0,
+    this.currency = 'KRW',
     this.dateTime,
     this.cardHolder,
     this.category = '기타',
     this.detail = '',
     this.isMealSuggested = false,
+    this.isOverseas = false,
+    this.autoMatched = false,
   });
 }

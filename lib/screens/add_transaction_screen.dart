@@ -26,6 +26,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime? _selectedDateTime;
   List<String> _selectedCoUsers = [];
   bool _showMealPrompt = false;
+  String _currency = 'KRW';
 
   @override
   void initState() {
@@ -54,7 +55,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _preview = preview;
       if (preview.success) {
         _merchantController.text = preview.merchant ?? '';
-        _amountController.text = preview.amount.toStringAsFixed(0);
+        _currency = preview.currency;
+        _amountController.text = _currency == 'KRW'
+            ? preview.amount.toStringAsFixed(0)
+            : preview.amount.toStringAsFixed(2);
         _selectedCategory = preview.category;
         _selectedDateTime = preview.dateTime;
         _showMealPrompt = preview.isMealSuggested;
@@ -110,6 +114,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     await provider.addTransaction(
       merchant: merchant,
       amount: amount,
+      currency: _currency,
       category: _selectedCategory,
       detail: _preview?.detail ?? '',
       coUsers: _selectedCoUsers,
@@ -172,12 +177,45 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 12),
+                if (_preview?.isOverseas ?? false) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.public,
+                          color: AppTheme.accent,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _preview!.autoMatched
+                                ? '해외승인 문자입니다. 사용처가 "${_preview!.merchant}"로 자동 매칭되었습니다.'
+                                : '해외승인 문자입니다. 사용처 이름이 카드사에 의해 잘렸을 수 있어요. 확인해주세요.',
+                            style: const TextStyle(
+                              color: AppTheme.accent,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 _buildField('사용처', _merchantController),
                 const SizedBox(height: 12),
                 _buildField(
-                  '금액 (원)',
+                  _currency == 'KRW' ? '금액 (원)' : '금액 ($_currency)',
                   _amountController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _buildDateTimePicker(),
