@@ -30,7 +30,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (_categoryFilter != null) {
       list = list.where((t) => t.category == _categoryFilter).toList();
     }
-    list.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    // 날짜/시간 오름차순(과거 -> 최근) 정렬
+    list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
     return list;
   }
 
@@ -261,86 +262,133 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         style: TextStyle(color: Colors.grey.shade500),
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final tx = list[index];
-                        final color = AppTheme.categoryColor(tx.category);
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TransactionDetailScreen(transaction: tx),
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildTableHeader(),
+                          Expanded(
+                            child: ListView.separated(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              itemCount: list.length,
+                              separatorBuilder: (_, __) => Divider(
+                                height: 1,
+                                color: Colors.grey.shade200,
                               ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFFEEF0FA),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: color.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(
-                                    AppTheme.categoryIcon(tx.category),
-                                    color: color,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        tx.merchant,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${DateFormat('MM/dd HH:mm').format(tx.dateTime)} · ${tx.category}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppTheme.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  AmountFormatter.format(
-                                    tx.amount,
-                                    tx.currency,
-                                  ),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                              itemBuilder: (context, index) {
+                                final tx = list[index];
+                                return _buildTableRow(tx);
+                              },
                             ),
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 표 형태 목록의 헤더 행 (날짜/시간 · 사용처 · 계정과목 · 금액)
+  Widget _buildTableHeader() {
+    const style = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: AppTheme.textSecondary,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF0FA),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(width: 92, child: Text('날짜/시간', style: style)),
+          Expanded(child: Text('사용처', style: style)),
+          SizedBox(
+            width: 96,
+            child: Text('계정과목', style: style, overflow: TextOverflow.ellipsis),
+          ),
+          SizedBox(
+            width: 90,
+            child: Text('금액', style: style, textAlign: TextAlign.right),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 표 형태 목록의 데이터 행 1건
+  Widget _buildTableRow(CardTransaction tx) {
+    final color = AppTheme.categoryColor(tx.category);
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TransactionDetailScreen(transaction: tx),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        color: Colors.white,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 92,
+              child: Text(
+                DateFormat('MM/dd HH:mm').format(tx.dateTime),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                tx.merchant,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            SizedBox(
+              width: 96,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  tx.category,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 90,
+              child: Text(
+                AmountFormatter.format(tx.amount, tx.currency),
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ],
         ),

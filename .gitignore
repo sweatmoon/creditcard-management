@@ -10,3 +10,4 @@ ios/Pods/
 *.iml
 .idea/
 web/.dart_tool/
+server.log
