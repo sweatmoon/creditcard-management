@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../services/export_service.dart';
-import '../utils/constants.dart';
 import '../utils/formatters.dart';
 import '../utils/theme.dart';
 import 'transaction_detail_screen.dart';
@@ -20,7 +19,6 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
-  String? _categoryFilter;
   bool _exporting = false;
 
   // 표 컬럼 폭 (헤더/데이터 행 공통으로 사용)
@@ -44,9 +42,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _selectedMonth.year,
       _selectedMonth.month,
     );
-    if (_categoryFilter != null) {
-      list = list.where((t) => t.category == _categoryFilter).toList();
-    }
     // 날짜/시간 오름차순(과거 -> 최근) 정렬
     list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
     return list;
@@ -296,18 +291,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ],
               ),
             ),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _filterChip('전체', null),
-                  ...kCategories.map((c) => _filterChip(c, c)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
             Container(
               width: double.infinity,
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -575,19 +558,4 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _filterChip(String label, String? value) {
-    final selected = _categoryFilter == value;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label, style: const TextStyle(fontSize: 12.5)),
-        selected: selected,
-        onSelected: (_) => setState(() => _categoryFilter = value),
-        selectedColor: AppTheme.primary,
-        labelStyle: TextStyle(
-          color: selected ? Colors.white : AppTheme.textPrimary,
-        ),
-      ),
-    );
-  }
 }
