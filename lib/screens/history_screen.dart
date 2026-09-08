@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/transaction.dart';
@@ -22,6 +23,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String? _categoryFilter;
   bool _exporting = false;
 
+  // 표 컬럼 폭 (헤더/데이터 행 공통으로 사용)
+  static const double _colDateWidth = 92;
+  static const double _colMerchantWidth = 130;
+  static const double _colCategoryWidth = 96;
+  static const double _colCoUsersWidth = 100;
+  static const double _colAmountWidth = 90;
+  static double get _tableWidth =>
+      _colDateWidth +
+      _colMerchantWidth +
+      _colCategoryWidth +
+      _colCoUsersWidth +
+      _colAmountWidth +
+      40; // padding 여유
+
   List<CardTransaction> _filtered(TransactionProvider provider) {
     var list = provider.transactionsForMonth(
       _selectedMonth.year,
@@ -33,6 +48,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // 날짜/시간 오름차순(과거 -> 최근) 정렬
     list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
     return list;
+  }
+
+  /// 셀 값을 클립보드에 복사하고 스낵바로 안내
+  void _copyCell(String value) {
+    if (value.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: value));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('"$value" 복사됨'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   Future<void> _export(List<CardTransaction> list) async {
@@ -253,7 +280,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                '셀 탭: 복사 · 길게 누르기: 상세보기/수정',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+            ),
+            const SizedBox(height: 6),
             Expanded(
               child: list.isEmpty
                   ? Center(
@@ -264,25 +299,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     )
                   : Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildTableHeader(),
-                          Expanded(
-                            child: ListView.separated(
-                              padding: const EdgeInsets.only(bottom: 24),
-                              itemCount: list.length,
-                              separatorBuilder: (_, __) => Divider(
-                                height: 1,
-                                color: Colors.grey.shade200,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: _tableWidth,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTableHeader(),
+                              Expanded(
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.only(bottom: 24),
+                                  itemCount: list.length,
+                                  separatorBuilder: (_, __) => Divider(
+                                    height: 1,
+                                    color: Colors.grey.shade200,
+                                  ),
+                                  itemBuilder: (context, index) {
+                                    final tx = list[index];
+                                    return _buildTableRow(tx);
+                                  },
+                                ),
                               ),
-                              itemBuilder: (context, index) {
-                                final tx = list[index];
-                                return _buildTableRow(tx);
-                              },
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
             ),
@@ -292,7 +333,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  /// 표 형태 목록의 헤더 행 (날짜/시간 · 사용처 · 계정과목 · 금액)
+  /// 표 형태 목록의 헤더 행 (날짜/시간 · 사용처 · 계정과목 · 공동사용자 · 금액)
   Widget _buildTableHeader() {
     const style = TextStyle(
       fontSize: 12,
@@ -305,93 +346,146 @@ class _HistoryScreenState extends State<HistoryScreen> {
         color: const Color(0xFFEEF0FA),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          SizedBox(width: 92, child: Text('날짜/시간', style: style)),
-          Expanded(child: Text('사용처', style: style)),
           SizedBox(
-            width: 96,
-            child: Text('계정과목', style: style, overflow: TextOverflow.ellipsis),
+            width: _colDateWidth,
+            child: const Text('날짜/시간', style: style),
           ),
           SizedBox(
-            width: 90,
-            child: Text('금액', style: style, textAlign: TextAlign.right),
+            width: _colMerchantWidth,
+            child: const Text('사용처', style: style),
+          ),
+          SizedBox(
+            width: _colCategoryWidth,
+            child: const Text(
+              '계정과목',
+              style: style,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
+            width: _colCoUsersWidth,
+            child: const Text(
+              '공동사용자',
+              style: style,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
+            width: _colAmountWidth,
+            child: const Text('금액', style: style, textAlign: TextAlign.right),
           ),
         ],
       ),
     );
   }
 
+  /// 기능(복사/상세보기) 설명이 통합된 표 셀 위젯 - 탭은 클립보드 복사, 길게 누르면(long press) 상세로 이동
+  Widget _cell({
+    required double width,
+    required String displayText,
+    required String copyText,
+    required VoidCallback onOpenDetail,
+    TextStyle? style,
+    TextAlign textAlign = TextAlign.left,
+    Widget? child,
+  }) {
+    return SizedBox(
+      width: width,
+      child: InkWell(
+        onTap: () => _copyCell(copyText),
+        onLongPress: onOpenDetail,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child:
+              child ??
+              Text(
+                displayText,
+                textAlign: textAlign,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+        ),
+      ),
+    );
+  }
+
   /// 표 형태 목록의 데이터 행 1건
+  /// 각 셀 탭: 해당 값 클립보드 복사 / 길게 누르면: 상세화면 이동
   Widget _buildTableRow(CardTransaction tx) {
     final color = AppTheme.categoryColor(tx.category);
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TransactionDetailScreen(transaction: tx),
+    final coUsersText = tx.coUsers.isEmpty ? '-' : tx.coUsers.join(', ');
+    void openDetail() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TransactionDetailScreen(transaction: tx),
+        ),
+      );
+    }
+
+    final dateText = DateFormat('MM/dd HH:mm').format(tx.dateTime);
+    final amountText = AmountFormatter.format(tx.amount, tx.currency);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      color: Colors.white,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _cell(
+            width: _colDateWidth,
+            displayText: dateText,
+            copyText: dateText,
+            onOpenDetail: openDetail,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        color: Colors.white,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 92,
-              child: Text(
-                DateFormat('MM/dd HH:mm').format(tx.dateTime),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                ),
+          _cell(
+            width: _colMerchantWidth,
+            displayText: tx.merchant,
+            copyText: tx.merchant,
+            onOpenDetail: openDetail,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          _cell(
+            width: _colCategoryWidth,
+            displayText: tx.category,
+            copyText: tx.category,
+            onOpenDetail: openDetail,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ),
-            Expanded(
               child: Text(
-                tx.merchant,
-                style: const TextStyle(
+                tx.category,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: color,
                   fontWeight: FontWeight.w600,
-                  fontSize: 13,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            SizedBox(
-              width: 96,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  tx.category,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 90,
-              child: Text(
-                AmountFormatter.format(tx.amount, tx.currency),
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          _cell(
+            width: _colCoUsersWidth,
+            displayText: coUsersText,
+            copyText: coUsersText,
+            onOpenDetail: openDetail,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+          ),
+          _cell(
+            width: _colAmountWidth,
+            displayText: amountText,
+            copyText: amountText,
+            onOpenDetail: openDetail,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ],
       ),
     );
   }
