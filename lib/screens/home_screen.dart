@@ -25,7 +25,7 @@ class HomeScreen extends StatelessWidget {
     final pendingCount = provider.pendingSms.length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('법인카드 정산')),
+      appBar: AppBar(title: const Text('법인카드 사용내역')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
