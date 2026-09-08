@@ -51,6 +51,28 @@ async function initSchema() {
     );
   `);
 
+  // 아이폰 단축어가 "URL의 콘텐츠 가져오기(POST)"로 문자 원문을 직접 전송했을 때,
+  // 서버에서 즉시 자동저장이 애매한 건(파싱 실패, 식대 추정으로 공동사용자 선택 필요 등)을
+  // 담아두는 "검토 대기" 큐. 사용자가 앱을 열었을 때 확인 후 승인/거부한다.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pending_sms (
+      id SERIAL PRIMARY KEY,
+      raw_message TEXT NOT NULL,
+      merchant TEXT,
+      amount NUMERIC,
+      currency TEXT NOT NULL DEFAULT 'KRW',
+      date_time TIMESTAMPTZ,
+      card_holder TEXT,
+      category TEXT NOT NULL DEFAULT '기타',
+      detail TEXT NOT NULL DEFAULT '',
+      is_meal_suggested BOOLEAN NOT NULL DEFAULT false,
+      parse_success BOOLEAN NOT NULL DEFAULT false,
+      reject_reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
   // 최초 배포 시 기본 매핑 규칙이 비어있으면 시드 데이터 삽입
   const { rows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM mapping_rules');
   if (rows[0].cnt === 0) {

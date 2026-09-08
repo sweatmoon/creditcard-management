@@ -15,6 +15,7 @@ class TransactionProvider extends ChangeNotifier {
   List<CardTransaction> _transactions = [];
   List<String> _teamMembers = [];
   List<MappingRule> _mappingRules = [];
+  List<PendingSms> _pendingSms = [];
 
   bool _isLoading = false;
   String? _error;
@@ -22,6 +23,7 @@ class TransactionProvider extends ChangeNotifier {
   List<CardTransaction> get transactions => _transactions;
   List<String> get teamMembers => _teamMembers;
   List<MappingRule> get mappingRules => _mappingRules;
+  List<PendingSms> get pendingSms => _pendingSms;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -35,10 +37,12 @@ class TransactionProvider extends ChangeNotifier {
         StorageService.getAllTransactions(),
         StorageService.getTeamMembers(),
         StorageService.getMappingRules(),
+        StorageService.getPendingSms(),
       ]);
       _transactions = results[0] as List<CardTransaction>;
       _teamMembers = results[1] as List<String>;
       _mappingRules = results[2] as List<MappingRule>;
+      _pendingSms = results[3] as List<PendingSms>;
       _error = null;
     } catch (e) {
       _error = '데이터를 불러오지 못했습니다: $e';
@@ -49,6 +53,55 @@ class TransactionProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// 검토 대기 목록만 새로고침 (홈 화면 배지 등에서 가볍게 사용)
+  Future<void> refreshPendingSms() async {
+    try {
+      _pendingSms = await StorageService.getPendingSms();
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) debugPrint('refreshPendingSms error: $e');
+    }
+  }
+
+  /// 검토 대기 항목 승인 -> 실제 거래로 저장
+  Future<void> approvePendingSms(
+    PendingSms pending, {
+    required String merchant,
+    required double amount,
+    required String currency,
+    required String category,
+    required String detail,
+    required List<String> coUsers,
+    required DateTime dateTime,
+    String? cardHolder,
+  }) async {
+    await StorageService.approvePendingSms(
+      pending.id,
+      merchant: merchant,
+      amount: amount,
+      currency: currency,
+      category: category,
+      detail: detail,
+      coUsers: coUsers,
+      dateTime: dateTime,
+      cardHolder: cardHolder,
+    );
+    if (coUsers.isNotEmpty) {
+      await StorageService.addTeamMembers(coUsers);
+      _teamMembers = await StorageService.getTeamMembers();
+    }
+    _transactions = await StorageService.getAllTransactions();
+    _pendingSms = await StorageService.getPendingSms();
+    notifyListeners();
+  }
+
+  /// 검토 대기 항목 거부(무시)
+  Future<void> rejectPendingSms(PendingSms pending) async {
+    await StorageService.rejectPendingSms(pending.id);
+    _pendingSms = await StorageService.getPendingSms();
+    notifyListeners();
   }
 
   /// SMS 원문을 파싱하여 미리보기용 결과를 생성 (저장 전 사용자 확인용)

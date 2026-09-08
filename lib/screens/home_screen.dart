@@ -5,6 +5,7 @@ import '../providers/transaction_provider.dart';
 import '../utils/formatters.dart';
 import '../utils/theme.dart';
 import 'add_transaction_screen.dart';
+import 'pending_sms_screen.dart';
 import 'transaction_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -21,6 +22,7 @@ class HomeScreen extends StatelessWidget {
       ..remove('KRW');
     final byCategory = provider.thisMonthByCategory;
     final recent = provider.transactions.take(8).toList();
+    final pendingCount = provider.pendingSms.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('법인카드 정산')),
@@ -121,7 +123,64 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              if (pendingCount > 0) ...[
+                InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PendingSmsScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppTheme.warning.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppTheme.warning.withValues(alpha: 0.18),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.mark_email_unread,
+                            color: AppTheme.warning,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            '단축어로 수신된 문자 중 $pendingCount건이 확인을 기다리고 있습니다.',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (byCategory.isNotEmpty) ...[
                 const Text(
                   '계정과목별 사용 현황',

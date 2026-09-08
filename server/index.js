@@ -6,9 +6,11 @@
 //
 // Railway는 컨테이너에 동적 $PORT를 주입하므로 반드시 process.env.PORT를 사용해야 함.
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const { pool, initSchema } = require('./db');
+const smsParser = require('./smsParser');
 
 const app = express();
 app.use(cors());
@@ -218,6 +220,221 @@ app.delete('/api/mapping-rules/:id', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to delete mapping rule' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// SMS 자동 수집 (아이폰 단축어 "URL의 콘텐츠 가져오기" POST 액션용)
+//
+// Safari/앱 화면을 전혀 띄우지 않고, 단축어가 문자 원문을 이 엔드포인트로
+// 바로 전송한다. 서버가 즉시 파싱/분류하여:
+//   - 성공 && 식대가 아니거나(공동사용자 불필요) 매핑규칙으로 확정된 경우
+//     -> transactions 테이블에 바로 자동 저장 (진짜 백그라운드 자동 적재)
+//   - 파싱 실패, 또는 식대로 추정되어 공동사용자 확인이 필요한 경우
+//     -> pending_sms(검토 대기) 테이블에 저장, 앱에서 나중에 확인 후 처리
+// ---------------------------------------------------------------------------
+
+function rowToPending(row) {
+  return {
+    id: row.id,
+    rawMessage: row.raw_message,
+    merchant: row.merchant,
+    amount: row.amount != null ? Number(row.amount) : null,
+    currency: row.currency,
+    dateTime: row.date_time,
+    cardHolder: row.card_holder,
+    category: row.category,
+    detail: row.detail,
+    isMealSuggested: row.is_meal_suggested,
+    parseSuccess: row.parse_success,
+    rejectReason: row.reject_reason,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+app.post('/api/sms/ingest', async (req, res) => {
+  try {
+    const rawMessage = (req.body && req.body.text) || (req.body && req.body.rawMessage) || '';
+    if (!rawMessage || !rawMessage.trim()) {
+      return res.status(400).json({ error: 'text is required' });
+    }
+
+    const parsed = smsParser.parseSms(rawMessage);
+
+    if (!parsed.success) {
+      // 파싱 실패(안내성 문자 포함) -> 검토 대기로 저장, 확인용으로만 남김
+      await pool.query(
+        `INSERT INTO pending_sms
+          (raw_message, merchant, amount, currency, date_time, card_holder, category, detail, is_meal_suggested, parse_success, reject_reason, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')`,
+        [
+          rawMessage,
+          null,
+          null,
+          'KRW',
+          null,
+          null,
+          '기타',
+          '',
+          false,
+          false,
+          parsed.rejectReason || null,
+        ],
+      );
+      return res.status(200).json({
+        ok: true,
+        autoSaved: false,
+        reason: parsed.rejectReason || '파싱 실패',
+      });
+    }
+
+    // 매핑 규칙 조회 후 분류 (자동 사용처 교정 포함)
+    const { rows: ruleRows } = await pool.query(
+      'SELECT id, keyword, detail, category FROM mapping_rules ORDER BY id ASC',
+    );
+    const classification = smsParser.classify({
+      dateTime: parsed.dateTime,
+      merchant: parsed.merchant || '알 수 없음',
+      rawMessage,
+      mappingRules: ruleRows,
+      isOverseas: parsed.isOverseas,
+    });
+    const merchant = classification.matchedKeyword
+      ? classification.matchedKeyword
+      : parsed.merchant || '알 수 없음';
+
+    // 식대로 추정된 경우(점심시간 자동분류, 매핑규칙 미확정)는 공동사용자 확인이
+    // 필요할 수 있으므로 바로 저장하지 않고 검토 대기로 보낸다.
+    const needsReview = classification.isMealSuggested;
+
+    if (needsReview) {
+      await pool.query(
+        `INSERT INTO pending_sms
+          (raw_message, merchant, amount, currency, date_time, card_holder, category, detail, is_meal_suggested, parse_success, reject_reason, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')`,
+        [
+          rawMessage,
+          merchant,
+          parsed.amount,
+          parsed.currency,
+          parsed.dateTime,
+          parsed.cardHolder || null,
+          classification.category,
+          classification.detail,
+          classification.isMealSuggested,
+          true,
+          null,
+        ],
+      );
+      return res.status(200).json({
+        ok: true,
+        autoSaved: false,
+        reason: '식대로 추정되어 공동사용자 확인이 필요합니다. 앱에서 확인해주세요.',
+      });
+    }
+
+    // 확실한 케이스 -> 즉시 자동 저장 (완전 백그라운드 적재)
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await pool.query(
+      `INSERT INTO transactions
+        (id, merchant, amount, currency, category, detail, co_users, date_time, card_holder, raw_message, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        id,
+        merchant,
+        parsed.amount,
+        parsed.currency,
+        classification.category,
+        classification.detail,
+        JSON.stringify([]),
+        parsed.dateTime,
+        parsed.cardHolder || null,
+        rawMessage,
+        now,
+      ],
+    );
+
+    return res.status(201).json({ ok: true, autoSaved: true, id });
+  } catch (e) {
+    console.error('sms ingest error:', e);
+    res.status(500).json({ error: 'Failed to process sms' });
+  }
+});
+
+// 검토 대기 목록 조회 (status=pending인 것만 기본)
+app.get('/api/pending-sms', async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const { rows } = await pool.query(
+      'SELECT * FROM pending_sms WHERE status=$1 ORDER BY created_at DESC',
+      [status],
+    );
+    res.json(rows.map(rowToPending));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch pending sms' });
+  }
+});
+
+// 검토 대기 항목을 실제 거래로 승인(저장) 처리 -> transactions에 삽입 후 pending 상태 변경
+// 요청 본문(body)의 값으로 사용자가 앱에서 수정한 내용(사용처/금액/계정과목/공동사용자 등)을
+// 덮어쓸 수 있으며, 원본 문자(raw_message)는 pending_sms 레코드에서 그대로 가져온다.
+app.post('/api/pending-sms/:id/approve', async (req, res) => {
+  try {
+    const { rows: pendingRows } = await pool.query(
+      'SELECT * FROM pending_sms WHERE id=$1',
+      [req.params.id],
+    );
+    if (pendingRows.length === 0) {
+      return res.status(404).json({ error: 'pending sms not found' });
+    }
+    const pending = pendingRows[0];
+    const t = req.body || {}; // 사용자가 확인/수정한 값 (없으면 pending 값 사용)
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await pool.query(
+      `INSERT INTO transactions
+        (id, merchant, amount, currency, category, detail, co_users, date_time, card_holder, raw_message, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        id,
+        t.merchant || pending.merchant,
+        t.amount != null ? t.amount : pending.amount,
+        t.currency || pending.currency || 'KRW',
+        t.category || pending.category || '기타',
+        t.detail != null ? t.detail : pending.detail || '',
+        JSON.stringify(t.coUsers || []),
+        t.dateTime || pending.date_time,
+        t.cardHolder || pending.card_holder || null,
+        pending.raw_message,
+        now,
+      ],
+    );
+    await pool.query(
+      "UPDATE pending_sms SET status='approved' WHERE id=$1",
+      [req.params.id],
+    );
+    res.status(201).json({ ok: true, id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to approve pending sms' });
+  }
+});
+
+// 검토 대기 항목을 거부(무시) 처리
+app.post('/api/pending-sms/:id/reject', async (req, res) => {
+  try {
+    await pool.query(
+      "UPDATE pending_sms SET status='rejected' WHERE id=$1",
+      [req.params.id],
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to reject pending sms' });
   }
 });
 

@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import '../utils/theme.dart';
 
 /// 아이폰 단축어(Shortcuts) 자동화 설정 가이드
-/// 웹 앱은 SMS를 직접 읽을 수 없으므로, 단축어의 "메시지 받을 때" 오토메이션 +
-/// "URL 열기" 액션으로 문자 내용을 이 웹앱의 /add?text=... 파라미터로 전달받는 방식 안내
+///
+/// "URL의 콘텐츠 가져오기(Get Contents of URL)" POST 액션으로 문자 원문을
+/// 서버(/api/sms/ingest)에 직접 전송하는 방식. Safari/앱 화면이 전혀 뜨지 않고
+/// 잠금 상태에서도 완전히 백그라운드로 동작한다.
+/// - 서버가 파싱에 확신이 있으면 즉시 거래내역에 자동 저장
+/// - 애매한 경우(식대 추정 등)만 "검토 대기"에 쌓여 앱에서 나중에 확인
 class ShortcutGuideScreen extends StatelessWidget {
   const ShortcutGuideScreen({super.key});
 
@@ -28,7 +32,8 @@ class ShortcutGuideScreen extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '아이폰 "단축어" 앱의 자동화 기능을 이용하면, 법인카드 승인 문자가 올 때마다\n'
-                      '자동으로 이 앱이 열리며 내용이 미리 채워집니다.',
+                      '화면이 켜지지 않고 완전히 백그라운드로 서버에 전송되어 자동 저장됩니다.\n'
+                      '(파싱이 애매한 경우만 앱의 "검토 대기"에 남습니다)',
                       style: TextStyle(fontSize: 13, height: 1.5),
                     ),
                   ),
@@ -52,11 +57,20 @@ class ShortcutGuideScreen extends StatelessWidget {
             ),
             _step(
               number: '3',
-              title: '동작 추가: "URL 열기"',
+              title: '동작 추가: "URL의 콘텐츠 가져오기"',
               desc:
-                  '동작 추가에서 "URL 열기"를 검색해 추가한 뒤,\n'
-                  'URL 입력란에 아래 주소를 붙여넣고 텍스트 부분을\n'
-                  '"단축어 입력" 변수(메시지 내용)로 바꿔주세요.',
+                  '동작 추가에서 "URL의 콘텐츠 가져오기(Get Contents of URL)"를 검색해 추가하세요.\n'
+                  'Safari를 여는 "URL 열기"가 아니라, 이 동작이어야 화면이 뜨지 않습니다.',
+            ),
+            _step(
+              number: '4',
+              title: 'URL / 방법 / 요청 본문(JSON) 설정',
+              desc:
+                  '동작을 눌러 아래 4가지를 설정하세요:\n'
+                  '① URL: 아래 주소 입력\n'
+                  '② 방법: POST\n'
+                  '③ 요청 본문: JSON 선택\n'
+                  '④ JSON에 "text" 필드를 추가하고 값은 "단축어 입력"(메시지 내용) 변수로 지정',
             ),
             Container(
               margin: const EdgeInsets.only(left: 46, bottom: 20),
@@ -66,27 +80,31 @@ class ShortcutGuideScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const SelectableText(
-                '현재 앱 주소/add?text=[메시지 내용]',
+                '현재 앱 주소/api/sms/ingest\n\n'
+                'JSON 요청 본문:\n'
+                '{ "text": [단축어 입력] }',
                 style: TextStyle(
                   color: Colors.white,
                   fontFamily: 'monospace',
                   fontSize: 12.5,
+                  height: 1.6,
                 ),
               ),
             ),
             _step(
-              number: '4',
+              number: '5',
               title: '"바로 실행" 설정',
               desc:
                   '마지막에 "실행 전 확인"을 꺼서 "바로 실행"으로 설정하면\n'
-                  '문자가 오는 즉시 확인창 없이 자동으로 앱이 열립니다.',
+                  '문자가 오는 즉시, 화면이 켜지지 않고 조용히 서버로 전송됩니다.',
             ),
             _step(
-              number: '5',
-              title: '앱에서 확인 후 저장',
+              number: '6',
+              title: '앱에서는 "검토 대기"만 확인',
               desc:
-                  '앱이 열리면 문자 내용이 자동으로 분석되어\n'
-                  '사용처/금액/계정과목이 미리 채워집니다. 확인 후 저장만 누르면 끝!',
+                  '대부분의 경우 자동으로 저장까지 완료됩니다.\n'
+                  '식대로 추정되어 공동사용자 확인이 필요하거나, 인식하지 못한 문자만\n'
+                  '홈 화면의 "검토 대기" 알림에 표시되니 그때만 앱을 열어 확인하세요.',
               isLast: true,
             ),
             const SizedBox(height: 8),
@@ -103,7 +121,8 @@ class ShortcutGuideScreen extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '단축어 자동화는 iOS 시스템 기능으로, 위 설정은 사용자가 아이폰에서\n'
-                      '직접 1회 진행해야 합니다. 이후에는 완전 자동으로 동작합니다.',
+                      '직접 1회 진행해야 합니다. 이후에는 완전 자동(백그라운드)으로 동작합니다.\n'
+                      '단, iOS 정책상 저전력 모드 등에서는 자동화 실행이 약간 지연될 수 있습니다.',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: AppTheme.warning.withValues(alpha: 0.9),

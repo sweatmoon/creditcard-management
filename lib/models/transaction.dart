@@ -141,3 +141,65 @@ class MappingRule {
     );
   }
 }
+
+/// 단축어가 서버로 문자를 직접 전송(백그라운드)했을 때, 서버가 즉시 자동저장하지
+/// 못하고(파싱 실패 또는 식대 추정으로 공동사용자 확인 필요) "검토 대기"로 쌓아둔 항목.
+/// 앱에서 이 목록을 확인 후 승인(저장)하거나 거부(무시)할 수 있다.
+class PendingSms {
+  final int id;
+  final String rawMessage;
+  final String? merchant;
+  final double? amount;
+  final String currency;
+  final DateTime? dateTime;
+  final String? cardHolder;
+  final String category;
+  final String detail;
+  final bool isMealSuggested;
+  final bool parseSuccess; // false면 파싱 자체가 실패한 케이스(안내문자 등)
+  final String? rejectReason;
+  final String status; // pending / approved / rejected
+  final DateTime createdAt;
+
+  PendingSms({
+    required this.id,
+    required this.rawMessage,
+    this.merchant,
+    this.amount,
+    this.currency = 'KRW',
+    this.dateTime,
+    this.cardHolder,
+    this.category = '기타',
+    this.detail = '',
+    this.isMealSuggested = false,
+    this.parseSuccess = false,
+    this.rejectReason,
+    this.status = 'pending',
+    required this.createdAt,
+  });
+
+  factory PendingSms.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic v) {
+      if (v == null) return null;
+      return DateTime.tryParse(v.toString())?.toLocal();
+    }
+
+    return PendingSms(
+      id: json['id'] as int,
+      rawMessage: json['rawMessage'] as String? ?? '',
+      merchant: json['merchant'] as String?,
+      amount: (json['amount'] as num?)?.toDouble(),
+      currency: json['currency'] as String? ?? 'KRW',
+      dateTime: parseDate(json['dateTime']),
+      cardHolder: json['cardHolder'] as String?,
+      category: json['category'] as String? ?? '기타',
+      detail: json['detail'] as String? ?? '',
+      isMealSuggested: json['isMealSuggested'] as bool? ?? false,
+      parseSuccess: json['parseSuccess'] as bool? ?? false,
+      rejectReason: json['rejectReason'] as String?,
+      status: json['status'] as String? ?? 'pending',
+      createdAt:
+          parseDate(json['createdAt']) ?? DateTime.now(),
+    );
+  }
+}

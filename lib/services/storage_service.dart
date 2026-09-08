@@ -196,4 +196,73 @@ class StorageService {
       _fail('매핑규칙 삭제', e);
     }
   }
+
+  // ---------------- Pending SMS (단축어 백그라운드 자동수집 검토 대기) ----------------
+
+  /// 검토 대기 목록 조회 (기본: status=pending)
+  static Future<List<PendingSms>> getPendingSms({
+    String status = 'pending',
+  }) async {
+    try {
+      final res = await http.get(
+        _uri('/api/pending-sms?status=$status'),
+      );
+      if (res.statusCode != 200) {
+        throw Exception('서버 응답 오류 (${res.statusCode})');
+      }
+      final List<dynamic> data = jsonDecode(utf8.decode(res.bodyBytes));
+      return data
+          .map((e) => PendingSms.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (e) {
+      _fail('검토 대기 목록 조회', e);
+    }
+  }
+
+  /// 검토 대기 항목을 승인(실제 거래로 저장). 사용자가 확인/수정한 값을 전달한다.
+  static Future<void> approvePendingSms(
+    int id, {
+    required String merchant,
+    required double amount,
+    required String currency,
+    required String category,
+    required String detail,
+    required List<String> coUsers,
+    required DateTime dateTime,
+    String? cardHolder,
+  }) async {
+    try {
+      final res = await http.post(
+        _uri('/api/pending-sms/$id/approve'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'merchant': merchant,
+          'amount': amount,
+          'currency': currency,
+          'category': category,
+          'detail': detail,
+          'coUsers': coUsers,
+          'dateTime': dateTime.toIso8601String(),
+          'cardHolder': cardHolder,
+        }),
+      );
+      if (res.statusCode != 201 && res.statusCode != 200) {
+        throw Exception('서버 응답 오류 (${res.statusCode})');
+      }
+    } catch (e) {
+      _fail('검토 대기 승인', e);
+    }
+  }
+
+  /// 검토 대기 항목을 거부(무시) 처리
+  static Future<void> rejectPendingSms(int id) async {
+    try {
+      final res = await http.post(_uri('/api/pending-sms/$id/reject'));
+      if (res.statusCode != 200) {
+        throw Exception('서버 응답 오류 (${res.statusCode})');
+      }
+    } catch (e) {
+      _fail('검토 대기 거부', e);
+    }
+  }
 }
