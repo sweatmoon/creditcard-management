@@ -94,7 +94,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _pickMonth() async {
     int year = _selectedMonth.year;
-    int month = _selectedMonth.month;
+    int selectedMonth = _selectedMonth.month;
+    final thisYear = DateTime.now().year;
+    final thisMonth = DateTime.now().month;
 
     await showModalBottomSheet(
       context: context,
@@ -104,61 +106,117 @@ class _HistoryScreenState extends State<HistoryScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.chevron_left),
-                        onPressed: () {
-                          setSheetState(() {
-                            if (month == 1) {
-                              month = 12;
-                              year -= 1;
-                            } else {
-                              month -= 1;
-                            }
-                          });
-                        },
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      Text(
-                        '$year년 $month월',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.chevron_right),
-                        onPressed: () {
-                          setSheetState(() {
-                            if (month == 12) {
-                              month = 1;
-                              year += 1;
-                            } else {
-                              month += 1;
-                            }
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() => _selectedMonth = DateTime(year, month));
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text('선택'),
                     ),
-                  ),
-                ],
+                    // 연도 선택 (좌우 화살표)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () => setSheetState(() => year -= 1),
+                        ),
+                        SizedBox(
+                          width: 90,
+                          child: Text(
+                            '$year년',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () => setSheetState(() => year += 1),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 달력 뷰 - 1~12월 그리드
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 1.3,
+                          ),
+                      itemCount: 12,
+                      itemBuilder: (context, idx) {
+                        final m = idx + 1;
+                        final isSelected =
+                            year == _selectedMonth.year && m == selectedMonth;
+                        final isToday = year == thisYear && m == thisMonth;
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            setState(() => _selectedMonth = DateTime(year, m));
+                            Navigator.pop(ctx);
+                          },
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppTheme.primary
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppTheme.primary
+                                    : isToday
+                                    ? AppTheme.primary.withValues(alpha: 0.5)
+                                    : const Color(0xFFE5E7EF),
+                                width: isToday && !isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Text(
+                              '$m월',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          setState(
+                            () =>
+                                _selectedMonth = DateTime(thisYear, thisMonth),
+                          );
+                          Navigator.pop(ctx);
+                        },
+                        icon: const Icon(Icons.today, size: 18),
+                        label: const Text('이번 달로 이동'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
