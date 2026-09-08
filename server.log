@@ -10,3 +10,6 @@
 10.64.19.240 - - [08/Sep/2026 01:48:19] "GET /assets/FontManifest.json HTTP/1.1" 200 -
 10.64.19.240 - - [08/Sep/2026 01:48:21] "GET /assets/fonts/MaterialIcons-Regular.otf HTTP/1.1" 200 -
 10.64.19.240 - - [08/Sep/2026 01:48:21] "GET /assets/packages/cupertino_icons/assets/CupertinoIcons.ttf HTTP/1.1" 200 -
+10.64.19.240 - - [08/Sep/2026 01:48:50] "HEAD / HTTP/1.1" 200 -
+10.64.19.240 - - [08/Sep/2026 01:48:51] "GET / HTTP/1.1" 200 -
+10.64.19.240 - - [08/Sep/2026 01:48:53] "GET /flutter_service_worker.js?v=1500542722 HTTP/1.1" 304 -
