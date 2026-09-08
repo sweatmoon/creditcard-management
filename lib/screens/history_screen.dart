@@ -344,7 +344,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                '셀 탭: 복사 · 길게 누르기: 상세보기/수정',
+                '사용처 탭: 상세보기/수정 · 그 외 셀 탭: 복사 (길게 누르면 반대 동작)',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
               ),
             ),
@@ -449,7 +449,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  /// 기능(복사/상세보기) 설명이 통합된 표 셀 위젯 - 탭은 클립보드 복사, 길게 누르면(long press) 상세로 이동
+  /// 기능(복사/상세보기) 설명이 통합된 표 셀 위젯
+  /// - 기본: 탭은 클립보드 복사, 길게 누르면(long press) 상세로 이동
+  /// - primaryActionIsDetail=true(사용처 컬럼): 탭 하면 바로 상세로 이동,
+  ///   길게 누르면 클립보드 복사로 동작이 뒤바뀜
   Widget _cell({
     required double width,
     required String displayText,
@@ -458,12 +461,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     TextStyle? style,
     TextAlign textAlign = TextAlign.left,
     Widget? child,
+    bool primaryActionIsDetail = false,
   }) {
     return SizedBox(
       width: width,
       child: InkWell(
-        onTap: () => _copyCell(copyText),
-        onLongPress: onOpenDetail,
+        onTap: primaryActionIsDetail
+            ? onOpenDetail
+            : () => _copyCell(copyText),
+        onLongPress: primaryActionIsDetail
+            ? () => _copyCell(copyText)
+            : onOpenDetail,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child:
@@ -515,6 +523,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             displayText: tx.merchant,
             copyText: tx.merchant,
             onOpenDetail: openDetail,
+            primaryActionIsDetail: true,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
           ),
           _cell(

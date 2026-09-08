@@ -20,8 +20,8 @@ WORKDIR /app
 COPY server/package.json ./
 RUN npm install --omit=dev
 
-# 서버 코드 복사
-COPY server/db.js server/index.js ./
+# 서버 코드 복사 (server/ 내 모든 .js 파일 - 신규 파일 추가 시 매번 수정할 필요 없도록)
+COPY server/*.js ./
 
 # Flutter 웹 빌드 결과물을 정적 파일 디렉터리로 복사
 COPY --from=build /app/build/web ./public

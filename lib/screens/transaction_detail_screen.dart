@@ -55,6 +55,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     super.dispose();
   }
 
+  /// 수정 모드 진입/취소 토글.
+  /// 취소(X) 시에는 편집 중이던 값을 버리고 원본(widget.transaction) 값으로
+  /// 컨트롤러/상태를 되돌린다. (이전에는 컨트롤러 값이 그대로 남아있어
+  /// 보기 모드로 돌아가도 마치 저장된 것처럼 잘못된 값이 표시되는 문제가 있었음)
+  void _toggleEditing() {
+    if (_editing) {
+      // 편집 취소: 원본 값으로 복원
+      final tx = widget.transaction;
+      _merchantController.text = tx.merchant;
+      _currency = tx.currency;
+      _amountController.text = _currency == 'KRW'
+          ? tx.amount.toStringAsFixed(0)
+          : tx.amount.toStringAsFixed(2);
+      _detailController.text = tx.detail;
+      _category = tx.category;
+      _dateTime = tx.dateTime;
+      _coUsers = List<String>.from(tx.coUsers);
+    }
+    setState(() => _editing = !_editing);
+  }
+
   Future<void> _save() async {
     final merchant = _merchantController.text.trim();
     final amount = double.tryParse(
@@ -123,7 +144,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         actions: [
           IconButton(
             icon: Icon(_editing ? Icons.close : Icons.edit),
-            onPressed: () => setState(() => _editing = !_editing),
+            onPressed: _toggleEditing,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
