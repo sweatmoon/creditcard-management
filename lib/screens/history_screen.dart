@@ -42,8 +42,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _selectedMonth.year,
       _selectedMonth.month,
     );
-    // 날짜/시간 오름차순(과거 -> 최근) 정렬
-    list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    // 날짜/시간 내림차순(최근 -> 과거) 정렬
+    list.sort((a, b) => b.dateTime.compareTo(a.dateTime));
     return list;
   }
 
