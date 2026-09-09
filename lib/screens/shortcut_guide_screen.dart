@@ -6,8 +6,8 @@ import '../utils/theme.dart';
 /// "URL의 콘텐츠 가져오기(Get Contents of URL)" POST 액션으로 문자 원문을
 /// 서버(/api/sms/ingest)에 직접 전송하는 방식. Safari/앱 화면이 전혀 뜨지 않고
 /// 잠금 상태에서도 완전히 백그라운드로 동작한다.
-/// - 서버가 파싱에 확신이 있으면 즉시 거래내역에 자동 저장
-/// - 애매한 경우(식대 추정 등)만 "검토 대기"에 쌓여 앱에서 나중에 확인
+/// - 서버가 파싱에 성공하면(금액/가맹점 인식) 식대 여부와 무관하게 즉시 자동 저장
+/// - 파싱에 실패한 문자(안내성 문자 등)만 "검토 대기"에 쌓여 앱에서 나중에 확인
 class ShortcutGuideScreen extends StatelessWidget {
   const ShortcutGuideScreen({super.key});
 
@@ -33,7 +33,7 @@ class ShortcutGuideScreen extends StatelessWidget {
                     child: Text(
                       '아이폰 "단축어" 앱의 자동화 기능을 이용하면, 법인카드 승인 문자가 올 때마다\n'
                       '화면이 켜지지 않고 완전히 백그라운드로 서버에 전송되어 자동 저장됩니다.\n'
-                      '(파싱이 애매한 경우만 앱의 "검토 대기"에 남습니다)',
+                      '(파싱에 실패한 문자만 앱의 "검토 대기"에 남습니다)',
                       style: TextStyle(fontSize: 13, height: 1.5),
                     ),
                   ),
@@ -102,9 +102,9 @@ class ShortcutGuideScreen extends StatelessWidget {
               number: '6',
               title: '앱에서는 "검토 대기"만 확인',
               desc:
-                  '대부분의 경우 자동으로 저장까지 완료됩니다.\n'
-                  '식대로 추정되어 공동사용자 확인이 필요하거나, 인식하지 못한 문자만\n'
-                  '홈 화면의 "검토 대기" 알림에 표시되니 그때만 앱을 열어 확인하세요.',
+                  '대부분의 경우 자동으로 저장까지 완료됩니다(식대 여부와 무관하게 즉시 저장).\n'
+                  '공동사용자가 필요한 식대 건은 저장 후 상세화면에서 직접 채워주시면 됩니다.\n'
+                  '서버가 인식하지 못한 문자만 홈 화면의 "검토 대기" 알림에 표시됩니다.',
               isLast: true,
             ),
             const SizedBox(height: 8),

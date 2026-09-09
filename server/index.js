@@ -228,9 +228,10 @@ app.delete('/api/mapping-rules/:id', async (req, res) => {
 //
 // Safari/앱 화면을 전혀 띄우지 않고, 단축어가 문자 원문을 이 엔드포인트로
 // 바로 전송한다. 서버가 즉시 파싱/분류하여:
-//   - 성공 && 식대가 아니거나(공동사용자 불필요) 매핑규칙으로 확정된 경우
-//     -> transactions 테이블에 바로 자동 저장 (진짜 백그라운드 자동 적재)
-//   - 파싱 실패, 또는 식대로 추정되어 공동사용자 확인이 필요한 경우
+//   - 파싱 성공 -> 식대 여부와 무관하게 항상 transactions 테이블에 바로
+//     자동 저장한다 (식대로 추정된 경우도 공동사용자 확인 없이 co_users를
+//     빈 배열로 두고 즉시 저장, 필요하면 나중에 상세화면에서 직접 수정).
+//   - 파싱 실패(원문에서 금액/가맹점을 못 찾은 경우)만
 //     -> pending_sms(검토 대기) 테이블에 저장, 앱에서 나중에 확인 후 처리
 // ---------------------------------------------------------------------------
 
@@ -304,37 +305,8 @@ app.post('/api/sms/ingest', async (req, res) => {
       ? classification.matchedKeyword
       : parsed.merchant || '알 수 없음';
 
-    // 식대로 추정된 경우(점심시간 자동분류, 매핑규칙 미확정)는 공동사용자 확인이
-    // 필요할 수 있으므로 바로 저장하지 않고 검토 대기로 보낸다.
-    const needsReview = classification.isMealSuggested;
-
-    if (needsReview) {
-      await pool.query(
-        `INSERT INTO pending_sms
-          (raw_message, merchant, amount, currency, date_time, card_holder, category, detail, is_meal_suggested, parse_success, reject_reason, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')`,
-        [
-          rawMessage,
-          merchant,
-          parsed.amount,
-          parsed.currency,
-          parsed.dateTime,
-          parsed.cardHolder || null,
-          classification.category,
-          classification.detail,
-          classification.isMealSuggested,
-          true,
-          null,
-        ],
-      );
-      return res.status(200).json({
-        ok: true,
-        autoSaved: false,
-        reason: '식대로 추정되어 공동사용자 확인이 필요합니다. 앱에서 확인해주세요.',
-      });
-    }
-
-    // 확실한 케이스 -> 즉시 자동 저장 (완전 백그라운드 적재)
+    // 파싱에 성공했다면 식대 추정 여부와 무관하게 항상 즉시 자동 저장한다.
+    // (공동사용자는 비워두고 저장, 필요시 앱에서 상세화면을 열어 나중에 채워넣으면 됨)
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await pool.query(
