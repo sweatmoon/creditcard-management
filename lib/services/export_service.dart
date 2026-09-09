@@ -157,7 +157,11 @@ class ExportService {
     sheet.setColumnWidth(6, 24);
     sheet.setColumnWidth(7, 24);
 
-    final bytes = excel.save();
+    // 주의: excel.save()는 웹 환경에서 자체적으로 브라우저 다운로드를 한 번
+    // 트리거해버려서(기본 파일명 FlutterExcel.xlsx), 아래 FileSaver.saveFile()과
+    // 합쳐 파일이 2개 다운로드되는 문제가 있었다. encode()는 다운로드를 트리거
+    // 하지 않고 순수 바이트만 반환하므로 이걸 써야 한다.
+    final bytes = excel.encode();
     return bytes ?? <int>[];
   }
 
