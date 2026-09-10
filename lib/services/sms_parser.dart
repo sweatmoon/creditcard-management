@@ -10,6 +10,7 @@ class ParsedSms {
   final String? cardHolder;
   final String? cardInfo;
   final bool isOverseas; // 해외승인 문자 여부 (사용처가 심하게 잘리는 특성)
+  final bool isCancellation; // 취소 문자 여부 (amount는 이미 음수로 변환됨)
   final bool success;
   final String? rejectReason; // 승인 문자가 아니라고 판단된 이유 (사용자 안내용)
 
@@ -21,6 +22,7 @@ class ParsedSms {
     this.cardHolder,
     this.cardInfo,
     this.isOverseas = false,
+    this.isCancellation = false,
     required this.success,
     this.rejectReason,
   });
@@ -91,7 +93,10 @@ class SmsParser {
     // 포함되어 있어도 개별 거래 승인 문자가 아니므로 항상 먼저 걸러낸다.
     if (isNonApprovalNotice(message)) return false;
 
-    final hasApprovalWord = message.contains('승인') || message.contains('매출');
+    // 취소 문자("OO원 취소")도 개별 거래 문자이므로 승인/매출과 동일하게
+    // 인식해야 한다. (그렇지 않으면 취소 문자가 파싱 실패로 처리됨)
+    final hasApprovalWord =
+        message.contains('승인') || message.contains('매출') || message.contains('취소');
     final hasKrwAmount = message.contains('원');
     final hasOverseasAmount = _overseasAmountLineRegex.hasMatch(
       message
@@ -130,6 +135,10 @@ class SmsParser {
     String? cardHolder;
     String? cardInfo;
     bool isOverseas = false;
+    // 문자에 명시된 동작(승인/취소/매출). "취소"인 경우 카드사가 수수료 등을
+    // 제외한 금액만 취소 처리하는 경우가 있어, 이 금액을 음수로 저장해서
+    // 정산 합계에서 원거래(양수)와 자동으로 상계되도록 한다.
+    String? action;
 
     // 1) 해외승인 패턴 우선 시도: "USD 109.99 해외승인"
     int amountLineIndex = -1;
@@ -140,6 +149,7 @@ class SmsParser {
         amount = _parseAmount(m.group(2));
         amountLineIndex = i;
         isOverseas = true;
+        action = m.group(3);
         break;
       }
     }
@@ -152,6 +162,7 @@ class SmsParser {
           amount = _parseAmount(m.group(1));
           amountLineIndex = i;
           currency = 'KRW';
+          action = m.group(2);
           break;
         }
       }
@@ -222,7 +233,14 @@ class SmsParser {
       }
     }
 
-    final success = amount != null && amount > 0;
+    final isCancellation = action == '취소';
+    // 취소 문자는 금액을 음수로 바꿔서, 정산 합계 시 원거래(양수)와 자동으로
+    // 상계되도록 한다. (전액환불이 아닌 수수료 차감 취소도 정확히 반영됨)
+    if (isCancellation && amount != null) {
+      amount = -amount.abs();
+    }
+
+    final success = amount != null && amount != 0;
 
     return ParsedSms(
       merchant: merchant,
@@ -232,6 +250,7 @@ class SmsParser {
       cardHolder: cardHolder,
       cardInfo: cardInfo,
       isOverseas: isOverseas,
+      isCancellation: isCancellation,
       success: success,
     );
   }
@@ -283,7 +302,18 @@ class SmsParser {
     return null;
   }
 
+  /// 상세내용 앞에 "[취소]" 태그를 붙인다(중복 방지).
+  static String _withCancelTag(String detail, bool isCancellation) {
+    if (!isCancellation) return detail;
+    if (detail.startsWith('[취소]')) return detail;
+    return detail.isEmpty ? '[취소]' : '[취소] $detail';
+  }
+
   /// 자동 분류 로직: 매핑규칙(해외 prefix 포함) > 식대(점심시간) > 기타
+  /// isCancellation이 true면 계정과목은 원거래와 동일하게 유지하되, 상세내용에
+  /// "[취소]" 태그를 붙여 목록에서 바로 구분되도록 한다. (금액은 이미 parse()
+  /// 단계에서 음수로 변환됨. 취소는 공동사용자 확인이 필요 없으므로 점심시간
+  /// 대여도 식대 자동분류 제안을 하지 않는다)
   /// 반환: (category, detail, isMealSuggested)
   static ClassificationResult classify({
     required DateTime dateTime,
@@ -291,6 +321,7 @@ class SmsParser {
     required String rawMessage,
     required List<MappingRule> mappingRules,
     bool isOverseas = false,
+    bool isCancellation = false,
   }) {
     // 1) 매핑 규칙이 우선 적용 (특정 사용처는 항상 지정된 값으로)
     final rule = findMappingRule(
@@ -302,14 +333,14 @@ class SmsParser {
     if (rule != null) {
       return ClassificationResult(
         category: rule.category,
-        detail: rule.detail,
+        detail: _withCancelTag(rule.detail, isCancellation),
         isMealSuggested: false,
         matchedKeyword: rule.keyword,
       );
     }
 
-    // 2) 점심시간대(11:30~14:00)이면 식대로 자동분류 제안
-    if (isLunchTime(dateTime)) {
+    // 2) 점심시간대(11:30~14:00)이면 식대로 자동분류 제안 (취소 문자는 제외)
+    if (!isCancellation && isLunchTime(dateTime)) {
       return ClassificationResult(
         category: '식대',
         detail: '',
@@ -320,7 +351,7 @@ class SmsParser {
     // 3) 기본값
     return ClassificationResult(
       category: '기타',
-      detail: '',
+      detail: _withCancelTag('', isCancellation),
       isMealSuggested: false,
     );
   }

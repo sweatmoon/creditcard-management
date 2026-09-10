@@ -300,6 +300,7 @@ app.post('/api/sms/ingest', async (req, res) => {
       rawMessage,
       mappingRules: ruleRows,
       isOverseas: parsed.isOverseas,
+      isCancellation: parsed.isCancellation,
     });
     const merchant = classification.matchedKeyword
       ? classification.matchedKeyword

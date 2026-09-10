@@ -551,7 +551,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
             copyText: amountText,
             onOpenDetail: openDetail,
             textAlign: TextAlign.right,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            // 취소 문자(수수료 차감 취소 등)로 음수 저장된 금액은 빨간색으로
+            // 강조해서 목록에서 바로 구분되도록 한다.
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: tx.amount < 0 ? AppTheme.danger : null,
+            ),
           ),
         ],
       ),

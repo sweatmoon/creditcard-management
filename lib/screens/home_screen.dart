@@ -365,9 +365,12 @@ class HomeScreen extends StatelessWidget {
                                     tx.amount,
                                     tx.currency,
                                   ),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14.5,
+                                    color: tx.amount < 0
+                                        ? AppTheme.danger
+                                        : null,
                                   ),
                                 ),
                                 const SizedBox(height: 3),

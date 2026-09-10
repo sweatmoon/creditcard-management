@@ -124,6 +124,7 @@ class TransactionProvider extends ChangeNotifier {
       rawMessage: rawMessage,
       mappingRules: _mappingRules,
       isOverseas: parsed.isOverseas,
+      isCancellation: parsed.isCancellation,
     );
 
     // 해외승인 문자에서 접두어(prefix) 매칭으로 사용처가 확정된 경우,
@@ -142,6 +143,7 @@ class TransactionProvider extends ChangeNotifier {
       detail: classification.detail,
       isMealSuggested: classification.isMealSuggested,
       isOverseas: parsed.isOverseas,
+      isCancellation: parsed.isCancellation,
       autoMatched: classification.matchedKeyword != null,
     );
   }
@@ -283,6 +285,7 @@ class ParsedSmsPreview {
   final String detail;
   final bool isMealSuggested;
   final bool isOverseas;
+  final bool isCancellation; // 취소 문자 여부 (amount는 이미 음수로 변환됨)
   final bool autoMatched; // 해외 prefix 매칭 등으로 사용처가 자동 확정된 경우
   final String? rejectReason; // 파싱 실패 시, 왜 거부되었는지 사용자에게 안내할 문구
 
@@ -298,6 +301,7 @@ class ParsedSmsPreview {
     this.detail = '',
     this.isMealSuggested = false,
     this.isOverseas = false,
+    this.isCancellation = false,
     this.autoMatched = false,
     this.rejectReason,
   });

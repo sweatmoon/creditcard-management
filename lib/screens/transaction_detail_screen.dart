@@ -81,7 +81,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final amount = double.tryParse(
       _amountController.text.trim().replaceAll(',', ''),
     );
-    if (merchant.isEmpty || amount == null || amount <= 0) {
+    // 취소 문자는 금액이 음수로 저장되므로(수수료 차감 취소 포함), 0만 아니면
+    // 허용한다. (승인은 양수, 취소는 음수)
+    if (merchant.isEmpty || amount == null || amount == 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('사용처와 금액을 올바르게 입력해주세요.')));
@@ -201,9 +203,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           double.tryParse(_amountController.text) ?? 0,
                           _currency,
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
+                          color: (double.tryParse(_amountController.text) ?? 0) < 0
+                              ? AppTheme.danger
+                              : null,
                         ),
                       ),
                       if (_currency != 'KRW') ...[

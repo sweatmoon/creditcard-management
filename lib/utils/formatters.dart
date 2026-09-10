@@ -6,12 +6,17 @@ class AmountFormatter {
   static final _krwFormat = NumberFormat('#,###');
   static final _usdFormat = NumberFormat('#,##0.00');
 
+  /// 취소 문자(수수료 차감 취소 등)는 amount가 음수로 저장되므로, 부호가
+  /// 통화기호 앞에 오도록 명시적으로 처리한다. (예: "-$14.00", "-14,000원")
   static String format(double amount, String currency) {
+    final isNegative = amount < 0;
+    final absAmount = amount.abs();
+    final sign = isNegative ? '-' : '';
     if (currency == 'KRW') {
-      return '${_krwFormat.format(amount)}원';
+      return '$sign${_krwFormat.format(absAmount)}원';
     }
     final symbol = _currencySymbol(currency);
-    return '$symbol${_usdFormat.format(amount)}';
+    return '$sign$symbol${_usdFormat.format(absAmount)}';
   }
 
   static String _currencySymbol(String currency) {

@@ -65,7 +65,10 @@ function isNonApprovalNotice(message) {
 
 function looksLikeCardApproval(message) {
   if (isNonApprovalNotice(message)) return false;
-  const hasApprovalWord = message.includes('승인') || message.includes('매출');
+  // 취소 문자("OO원 취소")도 개별 거래 문자이므로 승인/매출과 동일하게 인식해야
+  // 한다. (그렇지 않으면 취소 문자가 파싱 실패로 처리되어 자동 저장되지 않음)
+  const hasApprovalWord =
+    message.includes('승인') || message.includes('매출') || message.includes('취소');
   const hasKrwAmount = message.includes('원');
   const overseasLine = message
     .split('\n')
@@ -111,6 +114,10 @@ function parseSms(rawMessage) {
   let dateTime = null;
   let cardHolder = null;
   let isOverseas = false;
+  // 문자에 명시된 동작(승인/취소/매출). "취소"인 경우 실제로는 카드사가
+  // 수수료 등을 제외한 금액만 취소 처리하는 경우가 있어, 이 금액을 음수로
+  // 저장해서 정산 합계에서 원거래와 자동으로 상계되도록 한다.
+  let action = null;
 
   // 1) 해외승인 패턴 우선 시도
   let amountLineIndex = -1;
@@ -121,6 +128,7 @@ function parseSms(rawMessage) {
       amount = parseAmount(m[2]);
       amountLineIndex = i;
       isOverseas = true;
+      action = m[3] || null;
       break;
     }
   }
@@ -133,6 +141,7 @@ function parseSms(rawMessage) {
         amount = parseAmount(m[1]);
         amountLineIndex = i;
         currency = 'KRW';
+        action = m[2] || null;
         break;
       }
     }
@@ -196,7 +205,14 @@ function parseSms(rawMessage) {
     }
   }
 
-  const success = amount != null && amount > 0;
+  const isCancellation = action === '취소';
+  // 취소 문자는 금액을 음수로 바꿔서, 정산 합계 시 원거래(양수)와 자동으로
+  // 상계되도록 한다. (전액환불이 아닌 수수료 차감 취소도 정확히 반영됨)
+  if (isCancellation && amount != null) {
+    amount = -Math.abs(amount);
+  }
+
+  const success = amount != null && amount !== 0;
 
   return {
     success,
@@ -207,6 +223,7 @@ function parseSms(rawMessage) {
     dateTime: dateTime || new Date(),
     cardHolder,
     isOverseas,
+    isCancellation,
   };
 }
 
@@ -235,21 +252,44 @@ function findMappingRule(merchant, rawMessage, rules, isOverseas) {
   return null;
 }
 
+/// 상세내용 앞에 "[취소]" 태그를 붙인다(중복 방지).
+function withCancelTag(detail, isCancellation) {
+  if (!isCancellation) return detail || '';
+  const base = detail || '';
+  if (base.startsWith('[취소]')) return base;
+  return base ? `[취소] ${base}` : '[취소]';
+}
+
 /// 자동 분류: 매핑규칙(해외 prefix 포함) > 식대(점심시간) > 기타
-function classify({ dateTime, merchant, rawMessage, mappingRules, isOverseas }) {
+/// isCancellation이 true면 계정과목은 원거래와 동일하게 유지하되, 상세내용에
+/// "[취소]" 태그를 붙여 목록에서 바로 구분되도록 한다. (금액은 이미 parseSms
+/// 단계에서 음수로 변환됨)
+function classify({
+  dateTime,
+  merchant,
+  rawMessage,
+  mappingRules,
+  isOverseas,
+  isCancellation = false,
+}) {
   const rule = findMappingRule(merchant, rawMessage, mappingRules, isOverseas);
   if (rule) {
     return {
       category: rule.category,
-      detail: rule.detail,
+      detail: withCancelTag(rule.detail, isCancellation),
       isMealSuggested: false,
       matchedKeyword: rule.keyword,
     };
   }
-  if (isLunchTime(dateTime)) {
+  if (!isCancellation && isLunchTime(dateTime)) {
     return { category: '식대', detail: '', isMealSuggested: true, matchedKeyword: null };
   }
-  return { category: '기타', detail: '', isMealSuggested: false, matchedKeyword: null };
+  return {
+    category: '기타',
+    detail: withCancelTag('', isCancellation),
+    isMealSuggested: false,
+    matchedKeyword: null,
+  };
 }
 
 module.exports = {

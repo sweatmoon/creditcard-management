@@ -93,7 +93,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final amountText = _amountController.text.trim().replaceAll(',', '');
     final amount = double.tryParse(amountText);
 
-    if (merchant.isEmpty || amount == null || amount <= 0) {
+    // 취소 문자는 금액이 음수로 저장되므로(수수료 차감 취소 포함), 0만 아니면
+    // 허용한다. (승인은 양수, 취소는 음수)
+    if (merchant.isEmpty || amount == null || amount == 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('사용처와 금액을 올바르게 입력해주세요.')));
@@ -220,6 +222,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 12),
+                if (_preview?.isCancellation ?? false) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.cancel_outlined,
+                          color: AppTheme.danger,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '취소 문자입니다. 전액환불이 아닌 경우가 있어 금액이 음수로 저장됩니다.',
+                            style: const TextStyle(
+                              color: AppTheme.danger,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_preview?.isOverseas ?? false) ...[
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
